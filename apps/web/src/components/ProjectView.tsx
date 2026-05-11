@@ -365,9 +365,12 @@ export function ProjectView({
       && messagesConversationId !== activeConversationId
       && failedMessagesConversationId !== activeConversationId,
   );
-  const currentConversationStreaming = streaming || currentConversationHasActiveRun;
-  const currentConversationBusy = currentConversationLoading || currentConversationStreaming;
+  const currentConversationStreaming = streaming;
+  const currentConversationBusy = currentConversationLoading
+    || currentConversationStreaming
+    || currentConversationHasActiveRun;
   const currentConversationSendDisabled = currentConversationLoading
+    || currentConversationHasActiveRun
     || failedMessagesConversationId === activeConversationId;
   const activeCompletionNotificationRunsRef = useRef<Set<string>>(new Set());
   const completedNotificationRunsRef = useRef<Set<string>>(new Set());

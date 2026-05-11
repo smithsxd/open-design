@@ -328,6 +328,21 @@ describe('ProjectView conversation run isolation', () => {
     expect(reattachDaemonRun).not.toHaveBeenCalled();
   });
 
+  it('keeps Stop hidden and Send disabled until active-run cancellation is attached', async () => {
+    fetchChatRunStatus.mockImplementation(async () => new Promise(() => {}));
+
+    renderProjectView();
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('streaming-state').textContent).toBe('idle'));
+    expect(screen.getByTestId('send-message')).toHaveProperty('disabled', true);
+
+    fireEvent.click(screen.getByTestId('send-message'));
+
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(reattachDaemonRun).not.toHaveBeenCalled();
+  });
+
   it('surfaces conversation message load errors and keeps sends disabled until messages load', async () => {
     let conversationBLoadAttempts = 0;
     listMessages.mockImplementation(async (_projectId: string, conversationId: string) => {
