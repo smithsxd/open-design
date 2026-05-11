@@ -1823,6 +1823,7 @@ export function ProjectView({
   }, [project.id, activeConversationId, messages.length]);
 
   const handleSelectConversation = useCallback((id: string) => {
+    if (id === activeConversationId && failedMessagesConversationId !== id) return;
     setMessages([]);
     setPreviewComments([]);
     setAttachedComments([]);
@@ -1834,7 +1835,7 @@ export function ProjectView({
     messagesConversationIdRef.current = null;
     setActiveConversationId(id);
     setMessageLoadRetryNonce((nonce) => nonce + 1);
-  }, []);
+  }, [activeConversationId, failedMessagesConversationId]);
 
   const handleDeleteConversation = useCallback(
     async (id: string) => {

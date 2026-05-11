@@ -311,6 +311,23 @@ describe('ProjectView conversation run isolation', () => {
     expect(showCompletionNotification).not.toHaveBeenCalled();
   });
 
+  it('does not reload or reattach when selecting the active streaming conversation', async () => {
+    renderProjectView();
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('streaming-state').textContent).toBe('streaming'));
+
+    listMessages.mockClear();
+    reattachDaemonRun.mockClear();
+
+    fireEvent.click(screen.getByTestId('conversation-select-conv-a'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByTestId('streaming-state').textContent).toBe('streaming');
+    expect(listMessages).not.toHaveBeenCalled();
+    expect(reattachDaemonRun).not.toHaveBeenCalled();
+  });
+
   it('surfaces conversation message load errors and keeps sends disabled until messages load', async () => {
     let conversationBLoadAttempts = 0;
     listMessages.mockImplementation(async (_projectId: string, conversationId: string) => {
