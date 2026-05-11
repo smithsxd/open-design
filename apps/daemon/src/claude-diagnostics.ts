@@ -39,7 +39,7 @@ function withContext(
 ): ClaudeCliDiagnostic {
   const configDir = envValue(input.env, 'CLAUDE_CONFIG_DIR');
   const baseUrl = envValue(input.env, 'ANTHROPIC_BASE_URL');
-  const diagnosticTail = body(input).replace(/\s+/g, ' ').trim().slice(-240);
+  const diagnosticTail = redactSecrets(body(input)).replace(/\s+/g, ' ').trim().slice(-240);
   const context: string[] = [message, detail];
   if (diagnosticTail) context.push(`Claude output: ${diagnosticTail}`);
   if (configDir) context.push(`Effective CLAUDE_CONFIG_DIR: ${configDir}.`);

@@ -116,4 +116,30 @@ describe('diagnoseClaudeCliFailure', () => {
     expect(diagnostic?.detail).not.toContain('secret-value-123');
     expect(diagnostic?.detail).toContain('"x-api-key":"[REDACTED:api_key_header]"');
   });
+
+  it('redacts long bearer tokens before taking the diagnostic tail', () => {
+    const credential = 'a'.repeat(300);
+    const diagnostic = diagnoseClaudeCliFailure({
+      agentId: 'claude',
+      exitCode: 1,
+      stderrTail: `401 Authorization: Bearer ${credential}`,
+      env: {},
+    });
+
+    expect(diagnostic?.detail).not.toContain('a'.repeat(80));
+    expect(diagnostic?.detail).toContain('[REDACTED:bearer_token]');
+  });
+
+  it('redacts long provider API key headers before taking the diagnostic tail', () => {
+    const credential = 'b'.repeat(300);
+    const diagnostic = diagnoseClaudeCliFailure({
+      agentId: 'claude',
+      exitCode: 1,
+      stderrTail: `401 x-api-key: ${credential}`,
+      env: { ANTHROPIC_BASE_URL: 'https://proxy.example.test' },
+    });
+
+    expect(diagnostic?.detail).not.toContain('b'.repeat(80));
+    expect(diagnostic?.detail).toContain('x-api-key: [REDACTED:api_key_header]');
+  });
 });
