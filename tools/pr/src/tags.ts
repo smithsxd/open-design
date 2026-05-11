@@ -123,16 +123,17 @@ function tagUnresolvedChangesRequested(facts: PrFacts): Tag | null {
       source: "gh.latestReviews[].state",
     };
   }
-  // GitHub's reviewDecision keeps a reviewer's CHANGES_REQUESTED in effect
-  // until that same reviewer submits APPROVED or DISMISSED — COMMENTED does
-  // NOT supersede it. Our reducer collapses every reviewer to their latest
-  // state with no special-casing, so the per-reviewer CHANGES_REQUESTED
-  // gets hidden once they follow up with COMMENTED. Fall back to the
-  // PR-level reviewDecision so the tag still fires in that shape.
+  // The reducer-side path misses cases where GitHub's reviewDecision still
+  // reports CHANGES_REQUESTED but the latest-per-author reduction of fetched
+  // reviews carries none — e.g. the reviewer's CR is followed by COMMENTED
+  // (COMMENTED does not supersede CR in GitHub's decision logic), or the CR
+  // sits outside the `reviews(last: 30)` window. Either way the PR-level
+  // decision is the authoritative signal; fall back to it without asserting
+  // a specific cause.
   if (facts.reviewDecision === "CHANGES_REQUESTED") {
     return {
       name: "unresolved-changes-requested",
-      reason: "reviewDecision=CHANGES_REQUESTED at PR level (no per-reviewer CHANGES_REQUESTED visible after latest-per-author reduction; a reviewer's earlier CHANGES_REQUESTED was followed by COMMENTED)",
+      reason: "reviewDecision=CHANGES_REQUESTED at PR level; no per-reviewer CHANGES_REQUESTED state in latest-per-author reduction of fetched reviews",
       source: "gh.reviewDecision",
     };
   }
