@@ -1655,9 +1655,10 @@ function CommentSidePanel({
               <button
                 type="button"
                 className="comment-side-reply"
+                data-testid="comment-side-edit"
                 onClick={() => onReply(comment)}
               >
-                Reply
+                Edit
               </button>
             </div>
           );
@@ -4970,13 +4971,27 @@ function HtmlViewer({
                 }}
                 onClearSelection={() => setSelectedSideCommentIds(new Set())}
                 onReply={(comment) => {
-                  const snapshot = liveSnapshotForComment(comment, liveCommentTargets);
-                  if (snapshot) {
-                    setActiveCommentTarget(snapshot);
-                    setHoveredCommentTarget(snapshot);
-                    setCommentDraft('');
-                    setQueuedBoardNotes([]);
-                  }
+                  // Reply == edit on a flat-thread model: prefill the
+                  // popover with the existing note so the user sees and
+                  // mutates the current text. Save runs through the
+                  // same upsert path; matching project/conv/file/element
+                  // updates note in place rather than creating a new row.
+                  const snapshot = liveSnapshotForComment(comment, liveCommentTargets) ?? {
+                    filePath: comment.filePath,
+                    elementId: comment.elementId,
+                    selector: comment.selector,
+                    label: comment.label,
+                    text: comment.text,
+                    position: comment.position,
+                    htmlHint: comment.htmlHint,
+                    selectionKind: comment.selectionKind ?? 'element',
+                    memberCount: comment.memberCount,
+                    podMembers: comment.podMembers,
+                  };
+                  setActiveCommentTarget(snapshot);
+                  setHoveredCommentTarget(snapshot);
+                  setCommentDraft(comment.note);
+                  setQueuedBoardNotes([]);
                 }}
                 onSendSelected={async () => {
                   if (!onSendBoardCommentAttachments) return;
