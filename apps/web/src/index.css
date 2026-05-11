@@ -8982,6 +8982,18 @@ button.connector-action.is-loading {
   border-color: #e94a2d;
 }
 
+/* Anchor for the transient comment-save toast. Centered at the top
+   of the artifact preview so the confirmation is visible without
+   covering the popover's former position. */
+.comment-toast-anchor {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: auto;
+}
+
 /* Inspect panel — sibling of the comment popover. Anchored to the
    right side of the preview surface. Width is fixed so layout doesn't
    reflow as the user scrubs slider values; controls reserve space for
