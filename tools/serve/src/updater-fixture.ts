@@ -46,6 +46,18 @@ function serverOrigin(server: Server): string {
   return `http://127.0.0.1:${address.port}`;
 }
 
+function prereleaseCounterParts(version: string): { baseVersion: string; number: number } | null {
+  const prerelease = /^(\d+\.\d+\.\d+)-.+\.(\d+)$/.exec(version);
+  if (prerelease?.[1] != null && prerelease[2] != null) {
+    return { baseVersion: prerelease[1], number: Number(prerelease[2]) };
+  }
+  const nightly = /^(\d+\.\d+\.\d+)\.nightly\.(\d+)$/i.exec(version);
+  if (nightly?.[1] != null && nightly[2] != null) {
+    return { baseVersion: nightly[1], number: Number(nightly[2]) };
+  }
+  return null;
+}
+
 function channelMetadata(channel: "stable" | "beta", version: string): Record<string, unknown> {
   if (channel === "stable") {
     return {
@@ -55,13 +67,13 @@ function channelMetadata(channel: "stable" | "beta", version: string): Record<st
     };
   }
 
-  const match = /^(\d+\.\d+\.\d+)-beta\.(\d+)$/.exec(version);
-  if (match?.[1] == null || match[2] == null) {
-    throw new Error(`beta updater fixture version must match x.y.z-beta.N; got ${version}`);
+  const countedVersion = prereleaseCounterParts(version);
+  if (countedVersion == null) {
+    throw new Error(`beta updater fixture version must match x.y.z-<label>.N; got ${version}`);
   }
   return {
-    baseVersion: match[1],
-    betaNumber: Number(match[2]),
+    baseVersion: countedVersion.baseVersion,
+    betaNumber: countedVersion.number,
     betaVersion: version,
   };
 }

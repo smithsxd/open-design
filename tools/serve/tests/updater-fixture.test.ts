@@ -7,7 +7,7 @@ describe("updater fixture server", () => {
     const server = await startUpdaterFixtureServer({
       artifactBody: "fixture artifact",
       channel: "beta",
-      version: "2.0.0-beta.1",
+      version: "2.0.0-beta-nightly.1",
     });
     try {
       const metadataResponse = await fetch(server.info.metadataUrl);
@@ -23,7 +23,7 @@ describe("updater fixture server", () => {
       expect(metadata.channel).toBe("beta");
       expect(metadata.baseVersion).toBe("2.0.0");
       expect(metadata.betaNumber).toBe(1);
-      expect(metadata.betaVersion).toBe("2.0.0-beta.1");
+      expect(metadata.betaVersion).toBe("2.0.0-beta-nightly.1");
       expect(metadata.releaseVersion).toBeUndefined();
       expect(metadata.platforms?.mac?.artifacts?.dmg?.url).toBe(server.info.artifactUrl);
       expect(metadata.platforms?.mac?.artifacts?.dmg?.sha256Url).toBe(server.info.checksumUrl);

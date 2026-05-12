@@ -143,10 +143,6 @@ function normalizeMode(value: string | undefined, fallback: DesktopUpdateMode): 
   throw new Error(`unsupported desktop update mode: ${value}`);
 }
 
-function defaultChannelForVersion(version: string): DesktopUpdateChannel {
-  return /(?:^|[-.])beta(?:\.|$)/i.test(version) ? DESKTOP_UPDATE_CHANNELS.BETA : DESKTOP_UPDATE_CHANNELS.STABLE;
-}
-
 function normalizeChannel(value: string | undefined, fallback: DesktopUpdateChannel): DesktopUpdateChannel {
   if (value == null || value.length === 0) return fallback;
   if (value === DESKTOP_UPDATE_CHANNELS.STABLE || value === DESKTOP_UPDATE_CHANNELS.BETA) return value;
@@ -334,6 +330,47 @@ async function ensureOwnedUpdateRoot(config: DesktopUpdaterConfig): Promise<Owne
   }
 }
 
+type ParsedComparableVersion = {
+  nums: [number, number, number];
+  pre: string[];
+};
+
+function numberPart(value: string | undefined): number {
+  return value != null && /^[0-9]+$/.test(value) ? Number(value) : 0;
+}
+
+function parseComparableVersion(value: string): ParsedComparableVersion {
+  const cleaned = value.trim().replace(/^v/i, "").split("+", 1)[0] ?? "";
+  const nightlyMatch = /^(\d+)\.(\d+)\.(\d+)\.nightly\.(\d+)$/i.exec(cleaned);
+  if (nightlyMatch?.[1] != null && nightlyMatch[2] != null && nightlyMatch[3] != null && nightlyMatch[4] != null) {
+    return {
+      nums: [Number(nightlyMatch[1]), Number(nightlyMatch[2]), Number(nightlyMatch[3])],
+      pre: ["nightly", nightlyMatch[4]],
+    };
+  }
+
+  const prereleaseSeparator = cleaned.indexOf("-");
+  const core = prereleaseSeparator === -1 ? cleaned : cleaned.slice(0, prereleaseSeparator);
+  const prerelease = prereleaseSeparator === -1 ? "" : cleaned.slice(prereleaseSeparator + 1);
+  const nums = core.split(".");
+  return {
+    nums: [numberPart(nums[0]), numberPart(nums[1]), numberPart(nums[2])],
+    pre: prerelease.length === 0 ? [] : prerelease.split("."),
+  };
+}
+
+function hasCountedPrerelease(version: string): boolean {
+  const parsed = parseComparableVersion(version);
+  const last = parsed.pre.at(-1);
+  return parsed.pre.length >= 2 && last != null && /^[0-9]+$/.test(last);
+}
+
+function defaultChannelForVersion(version: string): DesktopUpdateChannel {
+  return /(?:^|[-.])beta(?:[-.]|$)/i.test(version) || hasCountedPrerelease(version)
+    ? DESKTOP_UPDATE_CHANNELS.BETA
+    : DESKTOP_UPDATE_CHANNELS.STABLE;
+}
+
 function compareIdentifier(a: string, b: string): number {
   const aNum = /^[0-9]+$/.test(a) ? Number(a) : null;
   const bNum = /^[0-9]+$/.test(b) ? Number(b) : null;
@@ -344,17 +381,8 @@ function compareIdentifier(a: string, b: string): number {
 }
 
 export function compareVersions(a: string, b: string): number {
-  const parse = (value: string) => {
-    const cleaned = value.trim().replace(/^v/i, "");
-    const [core, pre = ""] = cleaned.split("-", 2);
-    const nums = core.split(".").map((part) => Number(part));
-    return {
-      nums: [nums[0] ?? 0, nums[1] ?? 0, nums[2] ?? 0],
-      pre: pre.length === 0 ? [] : pre.split("."),
-    };
-  };
-  const left = parse(a);
-  const right = parse(b);
+  const left = parseComparableVersion(a);
+  const right = parseComparableVersion(b);
   for (let index = 0; index < 3; index += 1) {
     const delta = (left.nums[index] ?? 0) - (right.nums[index] ?? 0);
     if (delta !== 0) return Math.sign(delta);
@@ -378,6 +406,7 @@ function releaseVersion(metadata: Record<string, unknown>): string | null {
   return (
     stringField(metadata, "releaseVersion") ??
     stringField(metadata, "betaVersion") ??
+    stringField(metadata, "nightlyVersion") ??
     stringField(metadata, "stableVersion") ??
     stringField(metadata, "baseVersion")
   );

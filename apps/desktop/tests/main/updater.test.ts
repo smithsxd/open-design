@@ -20,6 +20,18 @@ type FixtureServer = {
   metadataUrl: string;
 };
 
+function prereleaseCounterParts(version: string): { baseVersion: string; number: number } | null {
+  const prerelease = /^(\d+\.\d+\.\d+)-.+\.(\d+)$/.exec(version);
+  if (prerelease?.[1] != null && prerelease[2] != null) {
+    return { baseVersion: prerelease[1], number: Number(prerelease[2]) };
+  }
+  const nightly = /^(\d+\.\d+\.\d+)\.nightly\.(\d+)$/i.exec(version);
+  if (nightly?.[1] != null && nightly[2] != null) {
+    return { baseVersion: nightly[1], number: Number(nightly[2]) };
+  }
+  return null;
+}
+
 async function createUpdaterFixture(options: {
   artifactBody?: string;
   channel?: "stable" | "beta";
@@ -33,13 +45,13 @@ async function createUpdaterFixture(options: {
     const url = request.url ?? "/";
     if (url === "/metadata.json") {
       response.setHeader("content-type", "application/json");
-      const betaMatch = /^(\d+\.\d+\.\d+)-beta\.(\d+)$/.exec(version);
+      const betaVersion = prereleaseCounterParts(version);
       response.end(JSON.stringify({
         channel,
         ...(channel === "beta"
           ? {
-              baseVersion: betaMatch?.[1],
-              betaNumber: betaMatch?.[2] == null ? undefined : Number(betaMatch[2]),
+              baseVersion: betaVersion?.baseVersion,
+              betaNumber: betaVersion?.number,
               betaVersion: version,
             }
           : {
@@ -192,6 +204,30 @@ describe("desktop updater", () => {
     }
   });
 
+  it("treats a larger counted beta nightly prerelease as an update", async () => {
+    const root = makeRoot();
+    const fixture = await createUpdaterFixture({ channel: "beta", version: "1.0.1-beta-nightly.2" });
+    try {
+      const updater = createDesktopUpdater({
+        arch: "arm64",
+        downloadRoot: root,
+        env: {
+          ...updaterEnv(fixture.metadataUrl),
+          [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.1-beta-nightly.1",
+        },
+        source: SIDECAR_SOURCES.TOOLS_PACK,
+      });
+
+      const checked = await updater.checkForUpdates();
+      expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
+      expect(checked.channel).toBe(DESKTOP_UPDATE_CHANNELS.BETA);
+      expect(checked.availableVersion).toBe("1.0.1-beta-nightly.2");
+    } finally {
+      await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("re-verifies a downloaded package before opening it", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture();
@@ -217,11 +253,11 @@ describe("desktop updater", () => {
     }
   });
 
-  it("defaults beta builds to the beta update channel", () => {
+  it("defaults counted beta nightly builds to the beta update channel", () => {
     const root = makeRoot();
     try {
       const config = resolveDesktopUpdaterConfig({
-        currentVersion: "1.2.3-beta.4",
+        currentVersion: "1.2.3-beta-nightly.4",
         downloadRoot: root,
         env: {
           [DESKTOP_UPDATE_ENV.ENABLED]: "1",
@@ -337,6 +373,9 @@ describe("desktop updater", () => {
     expect(compareVersions("1.0.1", "1.0.0")).toBe(1);
     expect(compareVersions("1.0.0", "1.0.0")).toBe(0);
     expect(compareVersions("1.0.0-beta.2", "1.0.0-beta.1")).toBe(1);
+    expect(compareVersions("1.0.0-beta-nightly.2", "1.0.0-beta-nightly.1")).toBe(1);
+    expect(compareVersions("1.0.0-nightly.10", "1.0.0-nightly.2")).toBe(1);
+    expect(compareVersions("1.0.0.nightly.2", "1.0.0.nightly.1")).toBe(1);
     expect(compareVersions("1.0.0", "1.0.0-beta.9")).toBe(1);
     expect(compareVersions("1.0.0-beta.1", "1.0.0")).toBe(-1);
   });
