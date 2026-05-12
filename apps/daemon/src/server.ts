@@ -1263,6 +1263,65 @@ function sendApiError(res, status, code, message, init = {}) {
 }
 
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'canceled']);
+const MEDIA_PROJECT_KINDS = new Set(['image', 'video', 'audio']);
+
+function mediaProjectKind(metadata) {
+  const kind = metadata && typeof metadata === 'object' ? metadata.kind : null;
+  return typeof kind === 'string' && MEDIA_PROJECT_KINDS.has(kind) ? kind : null;
+}
+
+function mediaFileMatchesKind(file, kind) {
+  if (!file || typeof file !== 'object') return false;
+  if (file.kind === kind) return true;
+  return (
+    typeof file.mime === 'string' &&
+    file.mime.toLowerCase().startsWith(`${kind}/`)
+  );
+}
+
+function hasNewOrUpdatedMediaOutput(beforeFiles, afterFiles, kind) {
+  const before = new Map(
+    (Array.isArray(beforeFiles) ? beforeFiles : [])
+      .filter((file) => file && typeof file.name === 'string')
+      .map((file) => [file.name, file]),
+  );
+  return (Array.isArray(afterFiles) ? afterFiles : []).some((file) => {
+    if (!mediaFileMatchesKind(file, kind)) return false;
+    const prior = before.get(file.name);
+    if (!prior) return true;
+    return file.size !== prior.size || file.mtime !== prior.mtime;
+  });
+}
+
+export async function validateMediaRunProducedOutput({
+  projectsRoot,
+  projectId,
+  metadata,
+  beforeFiles,
+  visibleText,
+  listFilesImpl = listFiles,
+}) {
+  const kind = mediaProjectKind(metadata);
+  if (!kind || typeof projectId !== 'string' || !projectId) {
+    return { ok: true };
+  }
+  if (
+    typeof visibleText === 'string' &&
+    /<question-form\b/i.test(visibleText)
+  ) {
+    return { ok: true };
+  }
+  const afterFiles = await listFilesImpl(projectsRoot, projectId, { metadata });
+  if (hasNewOrUpdatedMediaOutput(beforeFiles, afterFiles, kind)) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    message:
+      `Agent completed but no ${kind} output file was created or updated in the project. ` +
+      `The run is marked failed so Design Files does not show a false success.`,
+  };
+}
 
 export function shouldReportRunCompletedFromMessage(saved, body = {}) {
   return Boolean(
@@ -4005,6 +4064,7 @@ export async function startServer({
     // guard below skips them via `trackingSubstantiveOutput`.
     let agentProducedOutput = false;
     let trackingSubstantiveOutput = false;
+    let agentVisibleText = '';
     // Event types that count as "the agent actually produced something the
     // user can see." Lifecycle markers (`status`) and meter readings
     // (`usage`) deliberately do NOT count — a model can emit token-usage
@@ -4033,6 +4093,9 @@ export async function startServer({
       noteAgentActivity();
       if (ev?.type && SUBSTANTIVE_AGENT_EVENT_TYPES.has(ev.type)) {
         agentProducedOutput = true;
+      }
+      if (ev?.type === 'text_delta' && typeof ev.delta === 'string') {
+        agentVisibleText += ev.delta;
       }
       send('agent', ev);
     };
@@ -4149,7 +4212,7 @@ export async function startServer({
       send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', err.message));
       design.runs.finish(run, 'failed', 1, null);
     });
-    child.on('close', (code, signal) => {
+    child.on('close', async (code, signal) => {
       clearInactivityWatchdog();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
@@ -4204,6 +4267,33 @@ export async function startServer({
         : code === 0 || acpForcedShutdown
           ? 'succeeded'
           : 'failed';
+      if (status === 'succeeded') {
+        try {
+          const validation = await validateMediaRunProducedOutput({
+            projectsRoot: PROJECTS_DIR,
+            projectId,
+            metadata: projectRecord?.metadata,
+            beforeFiles: existingProjectFiles,
+            visibleText: agentVisibleText,
+          });
+          if (!validation.ok) {
+            send('error', createSseErrorPayload(
+              'AGENT_EXECUTION_FAILED',
+              validation.message,
+              { retryable: true },
+            ));
+            return design.runs.finish(run, 'failed', code, signal);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          send('error', createSseErrorPayload(
+            'AGENT_EXECUTION_FAILED',
+            `Agent completed but media output validation failed: ${message}`,
+            { retryable: true },
+          ));
+          return design.runs.finish(run, 'failed', code, signal);
+        }
+      }
       if (status === 'failed') {
         const diagnostic = diagnoseClaudeCliFailure({
           agentId: def.id,
