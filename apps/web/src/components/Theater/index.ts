@@ -17,9 +17,13 @@ export { InterruptButton } from './InterruptButton';
 export { useCritiqueStream } from './hooks/useCritiqueStream';
 export { useCritiqueReplay } from './hooks/useCritiqueReplay';
 export {
+  fetchCritiqueTheaterProjectSettings,
+  useCritiqueTheaterProjectOverride,
+  useResolvedCritiqueTheaterEnabled,
   setCritiqueTheaterEnabled,
   useCritiqueTheaterEnabled,
 } from './hooks/useCritiqueTheaterEnabled';
+export type { CritiqueTheaterProjectSettings } from './hooks/useCritiqueTheaterEnabled';
 export type {
   CritiqueState,
   CritiqueAction,

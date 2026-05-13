@@ -2302,6 +2302,52 @@ export async function startServer({
     }
   });
 
+  app.get('/api/projects/:id/critique/settings', async (req, res) => {
+    try {
+      const project = getProject(db, req.params.id);
+      if (!project) {
+        sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+        return;
+      }
+
+      const metadata = project.metadata;
+      const rawProjectOverride =
+        metadata && typeof metadata === 'object'
+          ? (metadata as { critiqueTheaterEnabled?: unknown }).critiqueTheaterEnabled
+          : undefined;
+      const projectOverride: boolean | null =
+        typeof rawProjectOverride === 'boolean' ? rawProjectOverride : null;
+
+      let skillPolicy: SkillCritiquePolicy = null;
+      if (typeof project.skillId === 'string' && project.skillId.length > 0) {
+        const skill = findSkillById(
+          await listAllSkillLikeEntries(),
+          project.skillId,
+        );
+        skillPolicy = skill?.critiquePolicy ?? null;
+      }
+
+      const phase = parseRolloutPhase(process.env.OD_CRITIQUE_ROLLOUT_PHASE);
+      const envOverride = parseEnvEnabled(process.env.OD_CRITIQUE_ENABLED);
+      const enabled = isCritiqueEnabled({
+        phase,
+        skillPolicy,
+        projectOverride,
+        envOverride,
+      });
+
+      res.json({
+        projectOverride,
+        envOverride,
+        phase,
+        skillPolicy,
+        enabled,
+      });
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
+    }
+  });
+
   registerConnectorRoutes(app, {
     sendApiError,
     authorizeToolRequest,

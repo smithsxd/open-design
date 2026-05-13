@@ -2,12 +2,16 @@
  * Nightly conformance entrypoint (Phase 16).
  *
  * The GitHub Actions workflow at `.github/workflows/critique-conformance.yml`
- * invokes this script once a day. It runs the conformance harness
- * against every synthetic adapter, classifies the outcome, and writes
- * one `ConformanceDay` row per adapter into the daemon's history dir.
- * The `/api/critique/conformance` route reads the rolling 14-day
- * window and the ratchet returns its promote / hold / demote
- * recommendation.
+ * invokes this script once a day as a validation snapshot. It runs the
+ * conformance harness against every synthetic adapter, classifies the
+ * outcome, and writes one `ConformanceDay` row per adapter into the
+ * configured data dir.
+ *
+ * CI uploads that directory as an artifact only; it does not publish
+ * the rows into any deployed daemon. Production ratchet history must
+ * be written by a deployment-local cron, or by an explicit ingest step
+ * that runs with OD_DATA_DIR pointed at the daemon data directory that
+ * serves `/api/critique/conformance`.
  *
  * Why synthetic-only for v1: the full production-adapter sweep needs
  * every agent CLI installable in the CI image. Wiring that is its own

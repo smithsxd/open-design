@@ -8,6 +8,16 @@ interface ConfigShape {
   [k: string]: unknown;
 }
 
+export interface CritiqueTheaterProjectSettings {
+  projectOverride: boolean | null;
+  envOverride: boolean | null;
+  phase: 'M0' | 'M1' | 'M2' | 'M3';
+  skillPolicy: 'required' | 'opt-in' | 'opt-out' | null;
+  enabled: boolean;
+}
+
+type FetchProjectSettings = (url: string, init?: RequestInit) => Promise<Response>;
+
 /**
  * Read the Settings-toggle flag for Critique Theater (Phase 15.3).
  *
@@ -65,6 +75,117 @@ export function useCritiqueTheaterEnabled(): boolean {
       window.removeEventListener(TOGGLE_EVENT, onCustom);
     };
   }, []);
+  return enabled;
+}
+
+export function useResolvedCritiqueTheaterEnabled(projectId: string | null): boolean {
+  const [enabled, setEnabled] = useState<boolean>(() => (projectId ? false : readToggle()));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!projectId) {
+      const reload = (): void => setEnabled(readToggle());
+      const onStorage = (evt: StorageEvent): void => {
+        if (evt.key !== null && evt.key !== STORAGE_KEY) return;
+        reload();
+      };
+      const onCustom = (evt: Event): void => {
+        const detail = (evt as CustomEvent<{ enabled?: unknown }>).detail;
+        if (detail && typeof detail.enabled === 'boolean') {
+          setEnabled(detail.enabled);
+          return;
+        }
+        reload();
+      };
+      window.addEventListener('storage', onStorage);
+      window.addEventListener(TOGGLE_EVENT, onCustom);
+      reload();
+      return () => {
+        window.removeEventListener('storage', onStorage);
+        window.removeEventListener(TOGGLE_EVENT, onCustom);
+      };
+    }
+
+    let alive = true;
+    const reload = async (): Promise<void> => {
+      try {
+        const settings = await fetchCritiqueTheaterProjectSettings(projectId);
+        if (alive) setEnabled(settings.enabled);
+      } catch {
+        if (alive) setEnabled(readToggle());
+      }
+    };
+    const onCustom = (evt: Event): void => {
+      const detail = (evt as CustomEvent<{ enabled?: unknown; projectId?: unknown }>).detail;
+      if (detail?.projectId === projectId && typeof detail.enabled === 'boolean') {
+        setEnabled(detail.enabled);
+        void reload();
+        return;
+      }
+      void reload();
+    };
+    window.addEventListener(TOGGLE_EVENT, onCustom);
+    void reload();
+    return () => {
+      alive = false;
+      window.removeEventListener(TOGGLE_EVENT, onCustom);
+    };
+  }, [projectId]);
+
+  return enabled;
+}
+
+export function useCritiqueTheaterProjectOverride(projectId: string | null): boolean {
+  const [enabled, setEnabled] = useState<boolean>(() => (projectId ? false : readToggle()));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!projectId) {
+      const reload = (): void => setEnabled(readToggle());
+      const onStorage = (evt: StorageEvent): void => {
+        if (evt.key !== null && evt.key !== STORAGE_KEY) return;
+        reload();
+      };
+      const onCustom = (evt: Event): void => {
+        const detail = (evt as CustomEvent<{ enabled?: unknown }>).detail;
+        if (detail && typeof detail.enabled === 'boolean') {
+          setEnabled(detail.enabled);
+          return;
+        }
+        reload();
+      };
+      window.addEventListener('storage', onStorage);
+      window.addEventListener(TOGGLE_EVENT, onCustom);
+      reload();
+      return () => {
+        window.removeEventListener('storage', onStorage);
+        window.removeEventListener(TOGGLE_EVENT, onCustom);
+      };
+    }
+
+    let alive = true;
+    const reload = async (): Promise<void> => {
+      try {
+        const settings = await fetchCritiqueTheaterProjectSettings(projectId);
+        if (alive) setEnabled(settings.projectOverride === true);
+      } catch {
+        if (alive) setEnabled(false);
+      }
+    };
+    const onCustom = (evt: Event): void => {
+      const detail = (evt as CustomEvent<{ enabled?: unknown; projectId?: unknown }>).detail;
+      if (detail?.projectId === projectId && typeof detail.enabled === 'boolean') {
+        setEnabled(detail.enabled);
+      }
+    };
+    window.addEventListener(TOGGLE_EVENT, onCustom);
+    void reload();
+    return () => {
+      alive = false;
+      window.removeEventListener(TOGGLE_EVENT, onCustom);
+    };
+  }, [projectId]);
+
   return enabled;
 }
 
@@ -138,7 +259,9 @@ export function setCritiqueTheaterEnabled(
        consistent for the rest of the session. */
   }
   try {
-    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: { enabled: next } }));
+    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, {
+      detail: { enabled: next, projectId: options.projectId },
+    }));
   } catch {
     /* CustomEvent shim missing: single mount remains correct. */
   }
@@ -217,6 +340,49 @@ export function setCritiqueTheaterEnabled(
       /* Already surfaced inside the async block. */
     });
   }
+}
+
+export async function fetchCritiqueTheaterProjectSettings(
+  projectId: string,
+  fetchProjectSettings: FetchProjectSettings = (url, init) => fetch(url, init),
+): Promise<CritiqueTheaterProjectSettings> {
+  const res = await fetchProjectSettings(
+    `/api/projects/${encodeURIComponent(projectId)}/critique/settings`,
+    { method: 'GET' },
+  );
+  if (!res.ok) {
+    throw new Error(`critique settings returned status ${res.status}`);
+  }
+  const body = await res.json() as unknown;
+  return normalizeCritiqueTheaterProjectSettings(body);
+}
+
+function normalizeCritiqueTheaterProjectSettings(
+  value: unknown,
+): CritiqueTheaterProjectSettings {
+  const body = value && typeof value === 'object'
+    ? value as Partial<CritiqueTheaterProjectSettings>
+    : {};
+  const phase = body.phase === 'M1' || body.phase === 'M2' || body.phase === 'M3'
+    ? body.phase
+    : 'M0';
+  const skillPolicy =
+    body.skillPolicy === 'required'
+    || body.skillPolicy === 'opt-in'
+    || body.skillPolicy === 'opt-out'
+      ? body.skillPolicy
+      : null;
+  return {
+    projectOverride: typeof body.projectOverride === 'boolean'
+      ? body.projectOverride
+      : null,
+    envOverride: typeof body.envOverride === 'boolean'
+      ? body.envOverride
+      : null,
+    phase,
+    skillPolicy,
+    enabled: body.enabled === true,
+  };
 }
 
 function readToggle(): boolean {

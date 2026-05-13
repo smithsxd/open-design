@@ -12,7 +12,7 @@
  * than expanding any of them.
  */
 import type http from 'node:http';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -166,5 +166,112 @@ describe('GET /api/projects/:id resolvedDir', () => {
     const body = (await patchResp.json()) as { error?: { code?: string; message?: string } };
     expect(body.error?.code).toBe('BAD_REQUEST');
     expect(body.error?.message).toMatch(/fromTrustedPicker/i);
+  });
+
+  it('returns resolved Critique Theater settings for project and env overrides', async () => {
+    const projectId = `proj-critique-settings-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Critique settings fixture',
+        skillId: null,
+        designSystemId: null,
+        metadata: { critiqueTheaterEnabled: false },
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const previousEnabled = process.env.OD_CRITIQUE_ENABLED;
+    const previousPhase = process.env.OD_CRITIQUE_ROLLOUT_PHASE;
+    process.env.OD_CRITIQUE_ENABLED = '1';
+    process.env.OD_CRITIQUE_ROLLOUT_PHASE = 'M3';
+    try {
+      const resp = await fetch(`${baseUrl}/api/projects/${projectId}/critique/settings`);
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as {
+        projectOverride: boolean | null;
+        envOverride: boolean | null;
+        phase: string;
+        skillPolicy: string | null;
+        enabled: boolean;
+      };
+      expect(body).toMatchObject({
+        projectOverride: false,
+        envOverride: true,
+        phase: 'M3',
+        skillPolicy: null,
+        enabled: false,
+      });
+    } finally {
+      if (previousEnabled === undefined) delete process.env.OD_CRITIQUE_ENABLED;
+      else process.env.OD_CRITIQUE_ENABLED = previousEnabled;
+      if (previousPhase === undefined) delete process.env.OD_CRITIQUE_ROLLOUT_PHASE;
+      else process.env.OD_CRITIQUE_ROLLOUT_PHASE = previousPhase;
+    }
+  });
+
+  it('lets skill critique policy participate in resolved Critique Theater settings', async () => {
+    const dataDir = process.env.OD_DATA_DIR;
+    if (!dataDir) throw new Error('OD_DATA_DIR is required for daemon route tests');
+    const skillDir = path.join(dataDir, 'skills', 'critique-required');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      path.join(skillDir, 'SKILL.md'),
+      [
+        '---',
+        'name: critique-required',
+        'description: Critique required fixture',
+        'od:',
+        '  critique:',
+        '    policy: required',
+        '---',
+        '',
+        '# Critique required',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const projectId = `proj-critique-policy-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Critique policy fixture',
+        skillId: 'critique-required',
+        designSystemId: null,
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const previousEnabled = process.env.OD_CRITIQUE_ENABLED;
+    const previousPhase = process.env.OD_CRITIQUE_ROLLOUT_PHASE;
+    delete process.env.OD_CRITIQUE_ENABLED;
+    process.env.OD_CRITIQUE_ROLLOUT_PHASE = 'M0';
+    try {
+      const resp = await fetch(`${baseUrl}/api/projects/${projectId}/critique/settings`);
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as {
+        projectOverride: boolean | null;
+        envOverride: boolean | null;
+        phase: string;
+        skillPolicy: string | null;
+        enabled: boolean;
+      };
+      expect(body).toMatchObject({
+        projectOverride: null,
+        envOverride: null,
+        phase: 'M0',
+        skillPolicy: 'required',
+        enabled: true,
+      });
+    } finally {
+      if (previousEnabled === undefined) delete process.env.OD_CRITIQUE_ENABLED;
+      else process.env.OD_CRITIQUE_ENABLED = previousEnabled;
+      if (previousPhase === undefined) delete process.env.OD_CRITIQUE_ROLLOUT_PHASE;
+      else process.env.OD_CRITIQUE_ROLLOUT_PHASE = previousPhase;
+    }
   });
 });

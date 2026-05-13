@@ -66,7 +66,7 @@ import { MemoryModelInline } from './MemoryModelInline';
 import { MemorySection } from './MemorySection';
 import {
   setCritiqueTheaterEnabled,
-  useCritiqueTheaterEnabled,
+  useCritiqueTheaterProjectOverride,
 } from './Theater';
 import {
   applyAppearanceToDocument,
@@ -4643,9 +4643,9 @@ function AppearanceSection({
 
 function CritiqueTheaterSection() {
   const { t } = useI18n();
-  const enabled = useCritiqueTheaterEnabled();
   const route = useRoute();
   const activeProjectId = route.kind === 'project' ? route.projectId : null;
+  const enabled = useCritiqueTheaterProjectOverride(activeProjectId);
 
   return (
     <section className="settings-section">

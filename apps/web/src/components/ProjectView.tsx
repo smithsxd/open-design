@@ -96,7 +96,7 @@ import { AvatarMenu } from './AvatarMenu';
 import { ChatPane } from './ChatPane';
 import {
   CritiqueTheaterMount,
-  useCritiqueTheaterEnabled,
+  useResolvedCritiqueTheaterEnabled,
 } from './Theater';
 import { decideAutoOpenAfterWrite } from './auto-open-file';
 import { FileWorkspace } from './FileWorkspace';
@@ -2371,7 +2371,7 @@ export function ProjectView({
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [designMdState.exists, handleContinueInCli]);
 
-  const critiqueTheaterEnabled = useCritiqueTheaterEnabled();
+  const critiqueTheaterEnabled = useResolvedCritiqueTheaterEnabled(project.id);
 
   return (
     <div className="app">

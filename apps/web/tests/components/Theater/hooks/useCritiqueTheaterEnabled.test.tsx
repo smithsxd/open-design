@@ -7,12 +7,13 @@
  * `open-design:critique-theater-toggle` CustomEvent (same-tab).
  */
 
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   setCritiqueTheaterEnabled,
   useCritiqueTheaterEnabled,
+  useResolvedCritiqueTheaterEnabled,
 } from '../../../../src/components/Theater/hooks/useCritiqueTheaterEnabled';
 
 function ensureLocalStorage(): Storage {
@@ -53,6 +54,11 @@ function ensureLocalStorage(): Storage {
 
 afterEach(() => {
   cleanup();
+  const fetchMock = globalThis.fetch as typeof globalThis.fetch & {
+    mockRestore?: () => void;
+  };
+  fetchMock.mockRestore?.();
+  vi.clearAllMocks();
   ensureLocalStorage();
   window.localStorage.clear();
 });
@@ -64,6 +70,17 @@ beforeEach(() => {
 
 function Probe({ sink }: { sink: { enabled?: boolean } }) {
   sink.enabled = useCritiqueTheaterEnabled();
+  return null;
+}
+
+function ResolvedProbe({
+  projectId,
+  sink,
+}: {
+  projectId: string | null;
+  sink: { enabled?: boolean };
+}) {
+  sink.enabled = useResolvedCritiqueTheaterEnabled(projectId);
   return null;
 }
 
@@ -143,6 +160,54 @@ describe('useCritiqueTheaterEnabled (Phase 15.3)', () => {
       );
     });
     expect(sink.enabled).toBe(true);
+  });
+
+  it('uses the daemon-resolved project setting even when localStorage is false', async () => {
+    window.localStorage.setItem(
+      'open-design:config',
+      JSON.stringify({ critiqueTheaterEnabled: false }),
+    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        projectOverride: null,
+        envOverride: true,
+        phase: 'M0',
+        skillPolicy: null,
+        enabled: true,
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const sink: { enabled?: boolean } = {};
+    render(<ResolvedProbe projectId="proj-1" sink={sink} />);
+
+    await waitFor(() => expect(sink.enabled).toBe(true));
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/projects/proj-1/critique/settings',
+      { method: 'GET' },
+    );
+  });
+
+  it('keeps project mode disabled until the daemon response enables it', async () => {
+    window.localStorage.setItem(
+      'open-design:config',
+      JSON.stringify({ critiqueTheaterEnabled: true }),
+    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        projectOverride: false,
+        envOverride: true,
+        phase: 'M3',
+        skillPolicy: null,
+        enabled: false,
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const sink: { enabled?: boolean } = {};
+    render(<ResolvedProbe projectId="proj-1" sink={sink} />);
+
+    expect(sink.enabled).toBe(false);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    expect(sink.enabled).toBe(false);
   });
 
   // ---------------------------------------------------------------------------
