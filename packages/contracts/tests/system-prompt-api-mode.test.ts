@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeSystemPrompt } from '../src/prompts/system.js';
+import { composeSystemPrompt, SKIP_DISCOVERY_BRIEF_OVERRIDE } from '../src/prompts/system.js';
 
 /**
  * Regression coverage for #313 — Anthropic API mode renders TodoWrite /
@@ -97,6 +97,18 @@ describe('composeSystemPrompt — API mode (#313)', () => {
     it('still allows <artifact> HTML output', () => {
       const prompt = composeSystemPrompt({ streamFormat: 'plain' });
       expect(prompt).toMatch(/<artifact>/);
+    });
+
+    it('honors metadata.skipDiscoveryBrief before the discovery rules', () => {
+      const prompt = composeSystemPrompt({
+        streamFormat: 'plain',
+        metadata: { kind: 'prototype', skipDiscoveryBrief: true },
+      });
+      const skipIdx = prompt.indexOf(SKIP_DISCOVERY_BRIEF_OVERRIDE);
+      const discoveryIdx = prompt.indexOf('# OD core directives');
+      expect(skipIdx).toBeGreaterThanOrEqual(0);
+      expect(skipIdx).toBeLessThan(discoveryIdx);
+      expect(prompt).toMatch(/do NOT emit `?<question-form id="discovery">`?/i);
     });
   });
 });

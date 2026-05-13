@@ -27,7 +27,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -168,6 +168,20 @@ function parseCsv(value: string): string[] {
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+export function dedupeDesignSystemIds(ids: string[]): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+}
+
+export function validateExplicitDesignSystemIds(requestedIds: string[], availableIds: string[]): string[] {
+  const requested = dedupeDesignSystemIds(requestedIds);
+  const available = new Set(availableIds.map((id) => id.trim()).filter(Boolean));
+  const unknown = requested.filter((id) => !available.has(id));
+  if (unknown.length > 0) {
+    throw new Error(`unknown design system id(s): ${unknown.join(', ')}`);
+  }
+  return requested;
 }
 
 function parseJsonObject(value: string, label: string): Record<string, unknown> {
@@ -338,18 +352,18 @@ async function resolvePrompt(config: BatchConfig): Promise<string> {
 }
 
 async function resolveDesignSystems(daemonUrl: string, config: BatchConfig): Promise<string[]> {
+  const body = await api<DesignSystemsResponse>(daemonUrl, 'GET', '/api/design-systems');
+  const systems = body.designSystems ?? body.systems ?? [];
+  const availableIds = dedupeDesignSystemIds(systems.map((system) => system.id));
+  if (availableIds.length === 0) throw new Error('daemon returned no design systems');
   if (config.allDesignSystems) {
-    const body = await api<DesignSystemsResponse>(daemonUrl, 'GET', '/api/design-systems');
-    const systems = body.designSystems ?? body.systems ?? [];
-    const ids = systems.map((s) => s.id).filter(Boolean);
-    if (ids.length === 0) throw new Error('daemon returned no design systems');
-    return ids;
+    return availableIds;
   }
-  const ids = (config.designSystems ?? []).map((id) => id.trim()).filter(Boolean);
+  const ids = config.designSystems ?? [];
   if (ids.length === 0) {
     throw new Error('missing design systems: pass --design-systems, --design-system, --all-design-systems, or config.designSystems');
   }
-  return [...new Set(ids)];
+  return validateExplicitDesignSystemIds(ids, availableIds);
 }
 
 async function resolveAgentId(daemonUrl: string, config: BatchConfig): Promise<string> {
@@ -556,7 +570,9 @@ async function main(): Promise<void> {
   if (failures.length > 0) process.exit(1);
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}
