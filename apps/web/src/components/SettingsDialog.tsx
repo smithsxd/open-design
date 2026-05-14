@@ -4124,8 +4124,19 @@ function MediaProvidersSection({
       return next.size === current.size ? current : next;
     });
   }, [cfg.mediaProviders]);
-  const providers = MEDIA_PROVIDERS
-    .filter((p) => p.settingsVisible !== false)
+  const visibleProviders = MEDIA_PROVIDERS.filter(
+    (p) => p.settingsVisible !== false,
+  );
+  // Split the catalog into two surfaces:
+  //   - "Available" — daemon ships a real client, user can paste a key
+  //     and it works. Rendered as full editable cards.
+  //   - "Coming soon" — listed for transparency / roadmap signaling but
+  //     the daemon has no client yet, so the form fields would be
+  //     disabled placeholders. Hiding them behind a <details> keeps the
+  //     primary list focused (was 16 cards, now 8) without dropping the
+  //     informational value.
+  const availableProviders = visibleProviders
+    .filter((p) => p.integrated)
     .slice()
     .sort((a, b) => {
       const aEntry = cfg.mediaProviders?.[a.id];
@@ -4133,9 +4144,12 @@ function MediaProvidersSection({
       const aConfigured = isStoredMediaProviderEntryPresent(aEntry);
       const bConfigured = isStoredMediaProviderEntryPresent(bEntry);
       if (aConfigured !== bConfigured) return aConfigured ? -1 : 1;
-      if (a.integrated !== b.integrated) return a.integrated ? -1 : 1;
       return a.label.localeCompare(b.label);
     });
+  const comingSoonProviders = visibleProviders
+    .filter((p) => !p.integrated)
+    .slice()
+    .sort((a, b) => a.label.localeCompare(b.label));
   const updateProvider = (
     provider: MediaProvider,
     patch: {
@@ -4175,6 +4189,17 @@ function MediaProvidersSection({
       setReloadRunning(false);
     }
   };
+  // Successful reload acknowledgement lives on the button (✓ Reloaded)
+  // for ~2s then disappears. Keeping it as a permanent paragraph under
+  // the section header was noise — the user just clicked a button and
+  // got a visible state change, an extra "we did the thing" line is
+  // redundant. Errors stay sticky because they actually require user
+  // attention.
+  useEffect(() => {
+    if (reloadNotice?.kind !== 'success') return;
+    const handle = window.setTimeout(() => setReloadNotice(null), 2000);
+    return () => window.clearTimeout(handle);
+  }, [reloadNotice]);
 
   const toggleApiKeyVisibility = (providerId: string) => {
     setVisibleApiKeys((current) => {
@@ -4198,35 +4223,65 @@ function MediaProvidersSection({
         {onReloadMediaProviders ? (
           <button
             type="button"
-            className="ghost"
+            className={`ghost${
+              reloadNotice?.kind === 'success' ? ' is-success-flash' : ''
+            }`}
             onClick={() => void handleReload()}
             disabled={reloadRunning}
+            aria-live="polite"
           >
-            {reloadRunning ? t('common.loading') : t('settings.mediaProviderReload')}
+            {reloadRunning ? (
+              t('common.loading')
+            ) : reloadNotice?.kind === 'success' ? (
+              <>
+                <Icon name="check" size={13} />
+                {/* TODO(i18n): inline English ack until the locale
+                    files get a dedicated `mediaProviderReloaded` key.
+                    Source-of-truth message still lives in
+                    settings.mediaProviderReloadSuccess (now used only
+                    for screen-reader announcement). */}
+                <span style={{ marginLeft: 4 }}>Reloaded</span>
+              </>
+            ) : (
+              t('settings.mediaProviderReload')
+            )}
           </button>
         ) : null}
       </div>
       {mediaProvidersNotice ? (
         <p className="hint" role="alert">{mediaProvidersNotice}</p>
       ) : null}
-      {reloadNotice ? (
-        <p className="hint" role={reloadNotice.kind === 'error' ? 'alert' : 'status'}>
+      {reloadNotice && reloadNotice.kind === 'error' ? (
+        // Errors only — successful reload feedback now rides on the
+        // button (see is-success-flash above) and clears itself after
+        // 2s, so the section header doesn't get colonised by a
+        // permanent "yes I did the thing" paragraph.
+        <p className="hint" role="alert">{reloadNotice.message}</p>
+      ) : null}
+      {reloadNotice && reloadNotice.kind === 'success' ? (
+        // Off-screen announcement so assistive tech still hears the
+        // success state even though the visible feedback collapses
+        // into a transient button label change.
+        <span className="sr-only" role="status">
           {reloadNotice.message}
-        </p>
+        </span>
       ) : null}
       <div className="media-provider-list">
-        {providers.map((provider) => {
+        {availableProviders.map((provider) => {
           const entry = cfg.mediaProviders?.[provider.id] ?? { apiKey: '', baseUrl: '', model: '' };
           const hasPendingEdit = Boolean(entry.apiKey.trim());
           const isSavedState = Boolean((hasPendingEdit || entry.apiKeyConfigured) && !hasPendingEdit);
           const tail = entry.apiKeyTail?.trim();
-          const configured = isStoredMediaProviderEntryPresent(entry);
-          const disabled = !provider.integrated;
+          // Every provider rendered in the main list is integrated by
+          // construction (see availableProviders filter), so the inputs
+          // are always editable here. Non-integrated entries live in
+          // the "Coming soon" <details> below.
+          const disabled = false;
           const supportsCustomModel = provider.supportsCustomModel === true;
           const clearable = isStoredMediaProviderEntryPresent(entry);
           const apiKeyVisible = visibleApiKeys.has(provider.id);
           return (
-            <div key={provider.id} className={`media-provider-row${provider.integrated ? '' : ' pending'}`}>
+            <div key={provider.id} className="media-provider-row">
               <div className="media-provider-head">
                 <div className="media-provider-meta">
                   {/*
@@ -4255,16 +4310,13 @@ function MediaProvidersSection({
                   </div>
                   <span className="media-provider-hint">{provider.hint}</span>
                 </div>
-                <div className="media-provider-badges">
-                  <span className={`media-provider-badge ${provider.integrated ? 'integrated' : 'unsupported'}`}>
-                    {provider.integrated ? 'Integrated' : 'Unsupported'}
-                  </span>
-                  {configured ? (
-                    <span className="media-provider-badge on">
-                      {t('settings.mediaProviderConfigured')}
-                    </span>
-                  ) : null}
-                </div>
+                {/*
+                  Right-side badges deliberately omitted now: every row
+                  in this list is "Integrated" by definition and the
+                  "Configured" pill duplicated the inline "Saved" chip
+                  next to the provider name. Three pills per row read
+                  as warnings; one chip reads as status.
+                */}
               </div>
               <div className="media-provider-body">
                 <div className="media-provider-secret-field">
@@ -4342,6 +4394,60 @@ function MediaProvidersSection({
           );
         })}
       </div>
+      {comingSoonProviders.length > 0 ? (
+        // Roadmap drawer. We still want to advertise that we know
+        // these providers exist (so users don't ask "where is Fal?"),
+        // but disabled placeholder cards in the main list were noise.
+        // Closed by default — opens to a compact name + hint + docs
+        // link list, no inputs because there's nothing to wire up yet.
+        // TODO(i18n): inline English placeholders; promote to locale
+        // keys when we touch this section again.
+        <details className="library-group media-provider-coming-soon">
+          <summary className="memory-details-summary">
+            <span className="memory-details-title">
+              Coming soon
+            </span>
+            <span className="filter-pill-count">
+              {comingSoonProviders.length}
+            </span>
+          </summary>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 8 }}>
+            We track these for the roadmap; the daemon doesn’t ship a
+            client yet, so there’s nothing to configure.
+          </p>
+          <ul className="media-provider-coming-soon-list">
+            {comingSoonProviders.map((provider) => {
+              const docsHref = sanitizeHttpsUrl(provider.docsUrl);
+              return (
+                <li
+                  key={provider.id}
+                  className="media-provider-coming-soon-item"
+                >
+                  <div className="media-provider-coming-soon-meta">
+                    <span className="media-provider-name">
+                      {provider.label}
+                    </span>
+                    <span className="media-provider-hint">
+                      {provider.hint}
+                    </span>
+                  </div>
+                  {docsHref ? (
+                    <a
+                      href={docsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ghost-link"
+                    >
+                      Docs
+                      <Icon name="external-link" size={11} />
+                    </a>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -4671,22 +4777,34 @@ function IntegrationsSection() {
           </div>
         ) : null}
 
-        {info && (!info.cliExists || !info.nodeExists) ? (
-          <div
-            className="empty-card"
+        {/* Capabilities first — user needs to know why to do this
+            before being asked to run a command. */}
+        <div style={{ marginBottom: 16, lineHeight: 1.55 }}>
+          <p
             style={{
-              marginBottom: 14,
-              borderLeft: '3px solid var(--warning-fg, #fbbf24)',
+              margin: '0 0 6px',
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
             }}
           >
-            <strong>
-              {!info.cliExists
-                ? t('settings.mcpBuildDaemon')
-                : t('settings.mcpNodeMissing')}
-            </strong>{' '}
-            {info.buildHint ?? t('settings.mcpBuildHint')}
-          </div>
-        ) : null}
+            {t('settings.mcpCapabilitiesTitle')}
+          </p>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: 18,
+              fontSize: 13,
+              color: 'var(--text)',
+            }}
+          >
+            <li>{t('settings.mcpCapabilityRead')}</li>
+            <li>{t('settings.mcpCapabilityPull')}</li>
+            <li>{t('settings.mcpCapabilityDefault')}</li>
+          </ul>
+        </div>
 
         <div
           className="ds-picker"
@@ -4841,13 +4959,37 @@ function IntegrationsSection() {
           </button>
         </div>
 
+        {/* "Build the daemon first" lives here — next to the code
+            block it explains — rather than at the top of the section
+            before the user has seen anything. A dev-mode pre-condition
+            warning at the very top reads as "something is broken"
+            before the user has even picked their client. */}
+        {info && (!info.cliExists || !info.nodeExists) ? (
+          <div
+            className="empty-card"
+            style={{
+              marginTop: 10,
+              borderLeft: '3px solid var(--warning-fg, #fbbf24)',
+            }}
+          >
+            <strong>
+              {!info.cliExists
+                ? t('settings.mcpBuildDaemon')
+                : t('settings.mcpNodeMissing')}
+            </strong>{' '}
+            {info.buildHint ?? t('settings.mcpBuildHint')}
+          </div>
+        ) : null}
+
+        {/* Restart note is a "next step" after running the command,
+            not an error — keep it right after the code block. */}
         <div
           style={{
             marginTop: 14,
             padding: '10px 12px',
             background: 'var(--bg-subtle)',
             border: '1px solid var(--border)',
-            borderLeft: '3px solid var(--accent)',
+            borderLeft: '3px solid var(--border-strong)',
             borderRadius: 6,
             fontSize: 13,
             lineHeight: 1.5,
@@ -4857,33 +4999,6 @@ function IntegrationsSection() {
           <span style={{ color: 'var(--text-muted)' }}>
             {t('settings.mcpRestartDetail')}
           </span>
-        </div>
-
-        <div style={{ marginTop: 20, lineHeight: 1.55 }}>
-          <p
-            style={{
-              margin: '0 0 8px',
-              fontSize: 11,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontWeight: 600,
-            }}
-          >
-            {t('settings.mcpCapabilitiesTitle')}
-          </p>
-          <ul
-            style={{
-              margin: 0,
-              paddingLeft: 18,
-              fontSize: 13,
-              color: 'var(--text)',
-            }}
-          >
-            <li>{t('settings.mcpCapabilityRead')}</li>
-            <li>{t('settings.mcpCapabilityPull')}</li>
-            <li>{t('settings.mcpCapabilityDefault')}</li>
-          </ul>
         </div>
 
         <p

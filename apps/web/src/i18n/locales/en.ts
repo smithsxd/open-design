@@ -205,8 +205,7 @@ export const en: Dict = {
 
   // MCP server settings
   'settings.mcpTitle': 'MCP server',
-  'settings.mcpHint':
-    'Lets a coding agent in another repo (Claude Code, Cursor, VS Code, Antigravity, Zed, Windsurf) read your Open Design projects. Use it to pull a design into your app without exporting a zip first.',
+  'settings.mcpHint': 'Let coding agents (Cursor, Claude Code, VS Code…) read your Open Design projects directly.',
   'settings.mcpDaemonError':
     "Couldn't reach the local daemon to resolve install paths ({error}). Make sure Open Design is running, then reopen this panel.",
   'settings.mcpBuildDaemon': 'Build the daemon first.',
