@@ -1,5 +1,12 @@
 # Open Design
 
+> [!IMPORTANT]
+> ### 🔥 `0.8.0-preview` ya está aquí. El viejo mundo del diseño termina aquí.
+>
+> Una alternativa open source y agent-native a Figma — 40k estrellas en dos semanas nos trajeron hasta aquí. **Te necesitamos para empujar el resto del camino.**
+>
+> → [**Lee el anuncio · descarga el instalador · únete al movimiento**](https://github.com/nexu-io/open-design/discussions/1727) · funciona en paralelo con tu 0.7 actual.
+
 > **La alternativa open source a [Claude Design][cd].** Local-first, desplegable en web, BYOK en cada capa: **16 CLI de coding agents** detectadas automáticamente en tu `PATH` (Claude Code, Codex, Devin for Terminal, Cursor Agent, Gemini CLI, OpenCode, Qwen, Qoder CLI, GitHub Copilot CLI, Hermes, Kimi, Pi, Kiro, Kilo, Mistral Vibe, DeepSeek TUI) se convierten en el motor de diseño, impulsadas por **31 Skills componibles** y **72 Design Systems de nivel marca**. ¿No tienes una CLI? Un proxy BYOK compatible con OpenAI ejecuta el mismo bucle sin el spawn local.
 
 <p align="center">
@@ -27,13 +34,6 @@
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>Español</b> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.ja-JP.md">日本語</a> · <a href="README.ar.md">العربية</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.tr.md">Türkçe</a></p>
-
-> [!IMPORTANT]
-> ### 🔥 `0.8.0-preview` ya está aquí. El viejo mundo del diseño termina aquí.
->
-> Una alternativa open source y agent-native a Figma — 40k estrellas en dos semanas nos trajeron hasta aquí. **Te necesitamos para empujar el resto del camino.**
->
-> → [**Lee el anuncio · descarga el instalador · únete al movimiento**](https://github.com/nexu-io/open-design/discussions/1727) · funciona en paralelo con tu 0.7 actual.
 
 ---
 

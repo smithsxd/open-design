@@ -1,5 +1,12 @@
 # Open Design
 
+> [!IMPORTANT]
+> ### 🔥 `0.8.0-preview` уже здесь. Старый мир дизайна заканчивается здесь.
+>
+> Open-source, agent-native альтернатива Figma — 40k звёзд за две недели довели нас до этой точки. **Дальше — только с тобой.**
+>
+> → [**Прочитать анонс · скачать установщик · присоединиться к движению**](https://github.com/nexu-io/open-design/discussions/1727) · устанавливается параллельно с твоей текущей 0.7.
+
 > **Открытая альтернатива [Claude Design][cd].** Локально-ориентированная, пригодная для web-деплоя, с BYOK на каждом уровне: **16 CLI coding-агентов** автоматически обнаруживаются в вашем `PATH` (Claude Code, Codex, Devin for Terminal, Cursor Agent, Gemini CLI, OpenCode, Qwen, Qoder CLI, GitHub Copilot CLI, Hermes, Kimi, Pi, Kiro, Kilo, Mistral Vibe, DeepSeek TUI) и превращаются в движок генерации дизайна, управляемый **31 комбинируемым навыком** и **72 дизайн-системами уровня бренда**. Нет CLI? OpenAI-совместимый BYOK-прокси даёт тот же цикл без локального запуска агента.
 
 <p align="center">
@@ -28,13 +35,6 @@
 </p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.ja-JP.md">日本語</a> · <a href="README.ar.md">العربية</a> · <b>Русский</b> · <a href="README.uk.md">Українська</a> · <a href="README.tr.md">Türkçe</a></p>
-
-> [!IMPORTANT]
-> ### 🔥 `0.8.0-preview` уже здесь. Старый мир дизайна заканчивается здесь.
->
-> Open-source, agent-native альтернатива Figma — 40k звёзд за две недели довели нас до этой точки. **Дальше — только с тобой.**
->
-> → [**Прочитать анонс · скачать установщик · присоединиться к движению**](https://github.com/nexu-io/open-design/discussions/1727) · устанавливается параллельно с твоей текущей 0.7.
 
 ---
 

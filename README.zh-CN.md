@@ -1,5 +1,12 @@
 # Open Design
 
+> [!IMPORTANT]
+> ### 🔥 `0.8.0-preview` 已发布。设计的旧世界，到此为止。
+>
+> 开源、agent-native 的 Figma 替代品 —— 上线两周，40k stars 在身，且仍在加速。**剩下的路，需要你和我们一起推完。**
+>
+> → [**读公告 · 下载安装包 · 加入这场运动**](https://github.com/nexu-io/open-design/discussions/1727) · 可与你现有的 0.7 并行安装。
+
 > **[Claude Design][cd] 的开源替代品。** 本地优先、可部署到 Vercel、每一层都 BYOK —— **16 套 coding-agent CLI** 在 `PATH` 上自动检测（Claude Code, Codex, Devin for Terminal, Cursor Agent, Gemini CLI, OpenCode, Qwen, Qoder CLI, GitHub Copilot CLI, Hermes, Kimi, Pi, Kiro, Kilo, Mistral Vibe, DeepSeek TUI）就是设计引擎，由 **31 个可组合 Skills** 和 **72 套品牌级 Design System** 驱动。
 
 <p align="center">
@@ -28,13 +35,6 @@
 </p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <b>简体中文</b> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.ja-JP.md">日本語</a> · <a href="README.ar.md">العربية</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.tr.md">Türkçe</a></p>
-
-> [!IMPORTANT]
-> ### 🔥 `0.8.0-preview` 已发布。设计的旧世界，到此为止。
->
-> 开源、agent-native 的 Figma 替代品 —— 上线两周，40k stars 在身，且仍在加速。**剩下的路，需要你和我们一起推完。**
->
-> → [**读公告 · 下载安装包 · 加入这场运动**](https://github.com/nexu-io/open-design/discussions/1727) · 可与你现有的 0.7 并行安装。
 
 ---
 
