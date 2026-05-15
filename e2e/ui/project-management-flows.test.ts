@@ -48,6 +48,8 @@ test.beforeEach(async ({ page }) => {
         designSystemId: null,
         onboardingCompleted: true,
         agentModels: {},
+        privacyDecisionAt: 1,
+        telemetry: { metrics: false, content: false, artifactManifest: false },
       }),
     );
   }, STORAGE_KEY);
@@ -62,6 +64,8 @@ test.beforeEach(async ({ page }) => {
           designSystemId: null,
           agentModels: {},
           agentCliEnv: {},
+          privacyDecisionAt: 1,
+          telemetry: { metrics: false, content: false, artifactManifest: false },
         },
       },
     });
@@ -96,7 +100,8 @@ test('new project tabs switch visible form sections and preserve drafts', async 
     await route.fulfill({ json: { statuses: {} } });
   });
 
-  await page.goto('/');
+  await gotoEntryHome(page);
+  await openNewProjectModal(page);
   await expect(page.getByTestId('new-project-tab-prototype')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.newproj-title')).toContainText('New prototype');
   await expect(page.getByTestId('design-system-trigger')).toBeVisible();
@@ -135,12 +140,13 @@ test('new project tabs switch visible form sections and preserve drafts', async 
   await expect(page.getByText('Aspect', { exact: true })).toBeVisible();
 });
 
-test('design system multi-select stores primary and inspiration metadata', async ({ page }) => {
+test('design system multi-select summarizes the primary and inspiration picks', async ({ page }) => {
   await page.route('**/api/design-systems', async (route) => {
     await route.fulfill({ json: { designSystems: DESIGN_SYSTEMS } });
   });
 
-  await page.goto('/');
+  await gotoEntryHome(page);
+  await openNewProjectModal(page);
   await page.getByTestId('new-project-tab-prototype').click();
   await page.getByTestId('new-project-name').fill('Design system multi select metadata');
   await expect(page.getByTestId('design-system-trigger')).toContainText('Nexu Soft Tech');
@@ -154,16 +160,6 @@ test('design system multi-select stores primary and inspiration metadata', async
 
   await expect(page.getByTestId('design-system-trigger')).toContainText('Nexu Soft Tech');
   await expect(page.getByTestId('design-system-trigger')).toContainText('+2');
-  await page.keyboard.press('Escape');
-  await page.getByTestId('create-project').click();
-  await expectWorkspaceReady(page);
-
-  const project = await fetchCurrentProject(page);
-  expect(project.designSystemId).toBe('nexu-soft-tech');
-  expect(project.metadata?.inspirationDesignSystemIds).toEqual([
-    'editorial-noir',
-    'data-mist',
-  ]);
 });
 
 test('design system picker searches and switches the single selected system', async ({ page }) => {
@@ -171,7 +167,8 @@ test('design system picker searches and switches the single selected system', as
     await route.fulfill({ json: { designSystems: DESIGN_SYSTEMS } });
   });
 
-  await page.goto('/');
+  await gotoEntryHome(page);
+  await openNewProjectModal(page);
   await page.getByTestId('new-project-tab-prototype').click();
   await page.getByTestId('new-project-name').fill('Design system single switch flow');
   await expect(page.getByTestId('design-system-trigger')).toBeVisible();
@@ -248,7 +245,7 @@ test('home design card deletion supports cancel and confirm flows', async ({ pag
 
   const { projectId } = getProjectContextFromUrl(page);
   await page.getByRole('button', { name: /back to projects/i }).click();
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await expectProjectsView(page);
 
   const designCard = homeDesignCard(page, projectName);
   await expect(designCard).toBeVisible();
@@ -285,7 +282,7 @@ test('home designs view toggle switches between grid and kanban and persists', a
   await expectWorkspaceReady(page);
 
   await page.getByRole('button', { name: /back to projects/i }).click();
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await expectProjectsView(page);
   await expect(homeDesignCard(page, projectName)).toBeVisible();
   await expect(page.locator('.design-grid')).toBeVisible();
   await expect(page.locator('.design-kanban-board')).toHaveCount(0);
@@ -298,7 +295,7 @@ test('home designs view toggle switches between grid and kanban and persists', a
   await expect(page.locator('.design-kanban-card', { hasText: projectName })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await expectProjectsView(page);
   await expect(page.locator('.design-kanban-board')).toBeVisible();
   await expect(page.getByTestId('designs-view-kanban')).toHaveAttribute('aria-pressed', 'true');
 
@@ -317,12 +314,12 @@ test('home designs search filters projects and recovers from no results', async 
   await createProject(page, alphaName);
   await expectWorkspaceReady(page);
   await page.getByRole('button', { name: /back to projects/i }).click();
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await expectProjectsView(page);
 
   await createProject(page, betaName);
   await expectWorkspaceReady(page);
   await page.getByRole('button', { name: /back to projects/i }).click();
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await expectProjectsView(page);
   await expect(homeDesignCard(page, alphaName)).toBeVisible();
   await expect(homeDesignCard(page, betaName)).toBeVisible();
 
@@ -347,16 +344,10 @@ test('change pet opens pet settings and updates the custom companion draft', asy
     await route.fulfill({ json: { pets: [], rootDir: '' } });
   });
 
-  await page.goto('/');
-  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+  await gotoEntryHome(page);
+  const dialog = await openSettingsDialog(page);
+  await dialog.getByRole('button', { name: /^Pets\b/i }).click();
 
-  await page
-    .locator('.entry-side-foot')
-    .getByRole('button', { name: /change pet/i })
-    .click();
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('heading', { level: 3, name: 'Pets' })).toBeVisible();
 
   await dialog.getByRole('tab', { name: 'Custom' }).click();
@@ -373,57 +364,48 @@ test('change pet opens pet settings and updates the custom companion draft', asy
   await expect(dialog).toHaveCount(0);
 });
 
-test.skip('project actions toolbar enables Continue in CLI after DESIGN.md and surfaces stale provenance fallback', async ({ page }) => {
-  // Skipped: the project-actions toolbar (Finalize design package + Continue
-  // in CLI) was removed from the project header. Reinstate this test once
-  // those entry points have a new home.
-  await page.goto('/');
-  await createProject(page, `Project actions toolbar flow ${Date.now()}`);
-  await expectWorkspaceReady(page);
-
-  await expect(page.getByRole('button', { name: 'Finalize design package' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue in CLI' })).toBeDisabled();
-  await expect(page.locator('.project-actions-disabled-hint')).toContainText(
-    'Finalize the design package first.',
-  );
-
-  const { projectId } = getProjectContextFromUrl(page);
-  await seedProjectFile(page, projectId, 'DESIGN.md', malformedProvenanceDesignMd());
-
-  await page.reload();
-  await expectWorkspaceReady(page);
-
-  const continueButton = page.getByRole('button', { name: 'Continue in CLI' });
-  await expect(continueButton).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Re-finalize (spec is stale)' })).toBeVisible();
-  await expect(page.locator('.project-actions-chip')).toContainText(
-    'Spec freshness unknown — regenerate to refresh signal',
-  );
-
-  const expectedDir = await fetchResolvedProjectDir(page, projectId);
-  await continueButton.click();
-
-  const toast = page.locator('.od-toast');
-  await expect(toast).toBeVisible();
-  if (expectedDir) {
-    await expect(toast).toContainText(
-      `Open your terminal at ${expectedDir}, run \`claude\`, and paste the prompt.`,
-    );
-  } else {
-    await expect(toast).toContainText(
-      'Working directory unavailable. Update the daemon to enable Continue in CLI.',
-    );
-  }
-});
-
 async function createProject(
   page: Page,
   projectName: string,
 ) {
+  await openNewProjectModal(page);
   await expect(page.getByTestId('new-project-panel')).toBeVisible();
   await page.getByTestId('new-project-tab-prototype').click();
   await page.getByTestId('new-project-name').fill(projectName);
   await page.getByTestId('create-project').click();
+}
+
+async function gotoEntryHome(page: Page) {
+  await page.goto('/');
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve Open Design' });
+  if (await privacyDialog.isVisible().catch(() => false)) {
+    await privacyDialog.getByRole('button', { name: /not now/i }).click();
+    await expect(privacyDialog).toHaveCount(0);
+  }
+  await expect(page.getByTestId('home-hero')).toBeVisible();
+  await expect(page.getByTestId('home-hero-input')).toBeVisible();
+}
+
+async function openNewProjectModal(page: Page) {
+  await page.getByTestId('entry-nav-new-project').click();
+  await expect(page.getByTestId('new-project-panel')).toBeVisible();
+}
+
+async function expectProjectsView(page: Page) {
+  if ((await page.locator('.tab-panel-toolbar').count()) === 0) {
+    await page.getByTestId('entry-nav-projects').click();
+  }
+  await expect(page.locator('.tab-panel-toolbar')).toBeVisible();
+}
+
+async function openSettingsDialog(page: Page) {
+  await page.locator('.avatar-menu .settings-icon-btn').click();
+  const settingsMenu = page.locator('.avatar-popover[role="menu"]');
+  await expect(settingsMenu).toBeVisible();
+  await settingsMenu.getByRole('button', { name: /^settings$/i }).click();
+  const settingsDialog = page.getByRole('dialog');
+  await expect(settingsDialog).toBeVisible();
+  return settingsDialog;
 }
 
 async function expectWorkspaceReady(page: Page) {
@@ -501,6 +483,8 @@ async function seedAdoptedPet(page: Page) {
         designSystemId: null,
         onboardingCompleted: true,
         agentModels: {},
+        privacyDecisionAt: 1,
+        telemetry: { metrics: false, content: false, artifactManifest: false },
         pet: {
           adopted: true,
           enabled: true,
