@@ -54,6 +54,10 @@ import type { TodoItem } from '../runtime/todos';
 import { appendErrorStatusEvent } from '../runtime/chat-events';
 import { isLiveArtifactTabId, liveArtifactTabId } from '../types';
 import {
+  DESIGN_SYSTEM_WORKSPACE_DISPLAY_TITLE,
+  isDesignSystemWorkspacePrompt,
+} from '../design-system-auto-prompt';
+import {
   createConversation,
   deleteConversation as deleteConversationApi,
   fetchAppliedPluginSnapshot,
@@ -1614,7 +1618,9 @@ export function ProjectView({
       // so the conversation is identifiable in the dropdown without a
       // round-trip through the agent.
       if (messages.length === 0) {
-        const title = prompt.slice(0, 60).trim();
+        const title = isDesignSystemWorkspacePrompt(prompt)
+          ? DESIGN_SYSTEM_WORKSPACE_DISPLAY_TITLE
+          : prompt.slice(0, 60).trim();
         if (title) {
           setConversations((curr) =>
             curr.map((c) =>
