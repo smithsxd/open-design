@@ -2304,7 +2304,10 @@ export function SettingsDialog({
                 );
                 if (cliEnvFields.length === 0) return null;
                 return (
-                  <details className="agent-cli-env">
+                  <details
+                    className="agent-cli-env"
+                    data-testid="settings-cli-env"
+                  >
                     <summary className="agent-cli-env-summary">
                       <span className="agent-cli-env-summary-title">
                         {t('settings.cliEnvTitle')}

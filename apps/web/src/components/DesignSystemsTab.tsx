@@ -122,14 +122,19 @@ export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: P
   }
 
   return (
-    <div className="tab-panel">
+    <div className="tab-panel" data-testid="design-systems-tab">
       <div className="tab-panel-toolbar">
         <input
+          data-testid="design-systems-search"
           placeholder={t('ds.searchPlaceholder')}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+        <select
+          data-testid="design-systems-category-select"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
           {categories.map((c) => (
             <option key={c} value={c}>
               {renderCategory(c)}
@@ -149,6 +154,7 @@ export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: P
             type="button"
             role="tab"
             aria-selected={surfaceFilter === p.value}
+            data-testid={`design-systems-surface-${p.value}`}
             className={`filter-pill ${surfaceFilter === p.value ? 'active' : ''}`}
             onClick={() => {
               setSurfaceFilter(p.value);
@@ -161,9 +167,9 @@ export function DesignSystemsTab({ systems, selectedId, onSelect, onPreview }: P
         ))}
       </div>
       {filtered.length === 0 ? (
-        <div className="tab-empty">{t('ds.emptyNoMatch')}</div>
+        <div className="tab-empty" data-testid="design-systems-empty">{t('ds.emptyNoMatch')}</div>
       ) : (
-        <div className="ds-grid">
+        <div className="ds-grid" data-testid="design-systems-grid">
           {filtered.map((s) => (
             <DesignSystemCard
               key={s.id}
@@ -240,6 +246,7 @@ function DesignSystemCard({
       className={`ds-card ${active ? 'active' : ''}`}
       role="button"
       tabIndex={0}
+      data-testid={`design-system-card-${system.id}`}
       onClick={onSelect}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -249,8 +256,9 @@ function DesignSystemCard({
       }}
     >
       <div
-        className="ds-card-thumb"
-        onClick={(e) => {
+      className="ds-card-thumb"
+      data-testid={`design-system-preview-${system.id}`}
+      onClick={(e) => {
           e.stopPropagation();
           onPreview();
         }}
@@ -292,7 +300,7 @@ function DesignSystemCard({
           {t('ds.preview')}
         </span>
       </div>
-      <div className="ds-card-meta">
+      <div className="ds-card-meta" data-testid={`design-system-select-${system.id}`}>
         <div className="ds-card-title-row">
           <span className="ds-card-title">{system.title}</span>
           {active ? (

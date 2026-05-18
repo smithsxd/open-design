@@ -34,6 +34,9 @@ jobs:
       web_tests_required: ${{ steps.detect.outputs.web_tests_required }}
       tools_dev_tests_required: ${{ steps.detect.outputs.tools_dev_tests_required }}
       tools_pack_tests_required: ${{ steps.detect.outputs.tools_pack_tests_required }}
+      ui_e2e_required: ${{ steps.detect.outputs.ui_e2e_required }}
+      e2e_extended_required: ${{ steps.detect.outputs.e2e_extended_required }}
+      build_required: ${{ steps.detect.outputs.build_required }}
 
     steps:
       - name: Checkout
@@ -51,6 +54,9 @@ jobs:
           web_tests_required=false
           tools_dev_tests_required=false
           tools_pack_tests_required=false
+          ui_e2e_required=false
+          e2e_extended_required=false
+          build_required=false
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > "$RUNNER_TEMP/changed-files.txt"
             patterns=(
@@ -72,19 +78,36 @@ jobs:
               done
               if [[ "$file" == "apps/daemon/"* || "$file" == "packages/contracts/"* || "$file" == "packages/platform/"* || "$file" == "packages/sidecar/"* || "$file" == "packages/sidecar-proto/"* ]]; then
                 daemon_tests_required=true
+                build_required=true
               fi
               if [[ "$file" == "apps/web/"* || "$file" == "packages/contracts/"* || "$file" == "packages/platform/"* || "$file" == "packages/sidecar/"* || "$file" == "packages/sidecar-proto/"* ]]; then
                 web_tests_required=true
+                ui_e2e_required=true
+                build_required=true
+              fi
+              if [[ "$file" == "packages/plugin-runtime/"* ]]; then
+                ui_e2e_required=true
+                build_required=true
               fi
               if [[ "$file" == "scripts/"* || "$file" == "assets/"* || "$file" == "skills/"* || "$file" == "prompt-templates/"* || "$file" == "design-systems/"* || "$file" == "design-templates/"* || "$file" == "craft/"* ]]; then
                 daemon_tests_required=true
                 web_tests_required=true
+                ui_e2e_required=true
+                build_required=true
               fi
               if [[ "$file" == "tools/dev/"* || "$file" == "packages/platform/"* || "$file" == "packages/sidecar/"* || "$file" == "packages/sidecar-proto/"* ]]; then
                 tools_dev_tests_required=true
+                build_required=true
               fi
               if [[ "$file" == "tools/pack/"* || "$file" == "apps/packaged/"* || "$file" == "apps/desktop/"* || "$file" == "packages/platform/"* || "$file" == "packages/sidecar/"* || "$file" == "packages/sidecar-proto/"* ]]; then
                 tools_pack_tests_required=true
+                build_required=true
+              fi
+              if [[ "$file" == "e2e/ui/"* || "$file" == "e2e/lib/"* || "$file" == "e2e/package.json" || "$file" == "e2e/playwright.config.ts" ]]; then
+                ui_e2e_required=true
+              fi
+              if [[ "$file" == "e2e/ui/app-restoration.test.ts" || "$file" == "e2e/ui/app-manual-edit.test.ts" || "$file" == "e2e/ui/app-design-files.test.ts" || "$file" == "e2e/ui/settings-"* || "$file" == "e2e/ui/workspace-keyboard-flows.test.ts" || "$file" == "e2e/ui/real-daemon-run.test.ts" || "$file" == "e2e/ui/critique-theater.test.ts" ]]; then
+                e2e_extended_required=true
               fi
               if [[ "$file" == "e2e/specs/mac.spec.ts" || "$file" == "e2e/specs/win.spec.ts" || "$file" == "e2e/specs/linux.spec.ts" || "$file" == "e2e/lib/linux-helpers.ts" || "$file" == "package.json" || "$file" == "pnpm-lock.yaml" || "$file" == "pnpm-workspace.yaml" || "$file" == ".github/workflows/ci.yml" || "$file" == ".github/workflows/release-beta.yml" || "$file" == ".github/workflows/release-preview.yml" || "$file" == ".github/workflows/release-stable.yml" ]]; then
                 required=true
@@ -92,12 +115,18 @@ jobs:
                 web_tests_required=true
                 tools_dev_tests_required=true
                 tools_pack_tests_required=true
+                ui_e2e_required=true
+                e2e_extended_required=true
+                build_required=true
               fi
               if [ "$required" = "true" ] \
                 && [ "$daemon_tests_required" = "true" ] \
                 && [ "$web_tests_required" = "true" ] \
                 && [ "$tools_dev_tests_required" = "true" ] \
-                && [ "$tools_pack_tests_required" = "true" ]; then
+                && [ "$tools_pack_tests_required" = "true" ] \
+                && [ "$ui_e2e_required" = "true" ] \
+                && [ "$e2e_extended_required" = "true" ] \
+                && [ "$build_required" = "true" ]; then
                 break
               fi
             done < "$RUNNER_TEMP/changed-files.txt"
@@ -107,6 +136,9 @@ jobs:
             web_tests_required=true
             tools_dev_tests_required=true
             tools_pack_tests_required=true
+            ui_e2e_required=true
+            e2e_extended_required=true
+            build_required=true
           fi
           {
             echo "required=$required"
@@ -114,13 +146,16 @@ jobs:
             echo "web_tests_required=$web_tests_required"
             echo "tools_dev_tests_required=$tools_dev_tests_required"
             echo "tools_pack_tests_required=$tools_pack_tests_required"
+            echo "ui_e2e_required=$ui_e2e_required"
+            echo "e2e_extended_required=$e2e_extended_required"
+            echo "build_required=$build_required"
           } >> "$GITHUB_OUTPUT"
 
-  validate:
-    name: Validate workspace
+  static_checks:
+    name: Static checks
     needs: [packaged_changes]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -140,8 +175,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browsers
-        run: pnpm -C e2e exec playwright install --with-deps chromium
+      - name: Check repository layout policies
+        run: pnpm guard
+
+      - name: Check i18n structure
+        run: pnpm i18n:check
+
+  typecheck:
+    name: Typecheck
+    needs: [packaged_changes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       # `scripts/postinstall.mjs` only prebuilds package/tool entrypoints that
       # are needed immediately after install for linked bins and shared
@@ -167,11 +229,29 @@ jobs:
       - name: Typecheck workspaces
         run: pnpm -r --workspace-concurrency=1 --if-present run typecheck
 
-      - name: Check repository layout policies
-        run: pnpm guard
+  unit_tests:
+    name: Unit tests
+    needs: [packaged_changes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
 
-      - name: Check i18n structure
-        run: pnpm i18n:check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Core package tests
         run: |
@@ -203,16 +283,96 @@ jobs:
       - name: E2E vitest
         run: pnpm --filter @open-design/e2e test
 
+  ui_e2e_critical:
+    name: UI E2E critical
+    needs: [packaged_changes]
+    if: ${{ needs.packaged_changes.outputs.ui_e2e_required == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm -C e2e exec playwright install --with-deps chromium
+
       - name: Playwright critical
         run: |
           pnpm -C e2e exec tsx scripts/playwright.ts clean
           pnpm --filter @open-design/e2e run test:ui:critical
 
+  ui_e2e_extended:
+    name: UI E2E extended
+    needs: [packaged_changes]
+    if: ${{ needs.packaged_changes.outputs.e2e_extended_required == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm -C e2e exec playwright install --with-deps chromium
+
       - name: Playwright extended
-        if: ${{ github.event_name != 'pull_request' }}
         run: |
           pnpm -C e2e exec tsx scripts/playwright.ts clean
           pnpm --filter @open-design/e2e run test:ui:extended
+
+  build:
+    name: Build
+    needs: [packaged_changes]
+    if: ${{ needs.packaged_changes.outputs.build_required == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       # Keep workspace builds serialized so generated dist output and local
       # runtime artifacts are produced in a deterministic order. Parallel
@@ -221,6 +381,60 @@ jobs:
       # races outweigh the lost parallelism; revisit if the package count grows.
       - name: Build workspaces
         run: pnpm -r --workspace-concurrency=1 --if-present run build
+
+  validate:
+    name: Validate workspace
+    needs:
+      - packaged_changes
+      - static_checks
+      - typecheck
+      - unit_tests
+      - ui_e2e_critical
+      - ui_e2e_extended
+      - build
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate split check results
+        env:
+          PACKAGED_CHANGES_RESULT: ${{ needs.packaged_changes.result }}
+          STATIC_CHECKS_RESULT: ${{ needs.static_checks.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          UNIT_TESTS_RESULT: ${{ needs.unit_tests.result }}
+          UI_E2E_CRITICAL_RESULT: ${{ needs.ui_e2e_critical.result }}
+          UI_E2E_EXTENDED_RESULT: ${{ needs.ui_e2e_extended.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=false
+          for name in \
+            PACKAGED_CHANGES_RESULT \
+            STATIC_CHECKS_RESULT \
+            TYPECHECK_RESULT \
+            UNIT_TESTS_RESULT \
+            UI_E2E_CRITICAL_RESULT \
+            UI_E2E_EXTENDED_RESULT \
+            BUILD_RESULT; do
+            result="${!name}"
+            echo "$name=$result"
+            case "$result" in
+              success|skipped)
+                ;;
+              failure|cancelled)
+                failed=true
+                ;;
+              *)
+                echo "Unexpected job result for $name: $result" >&2
+                failed=true
+                ;;
+            esac
+          done
+          if [ "$failed" = "true" ]; then
+            exit 1
+          fi
 
   packaged_smoke_mac:
     name: Packaged mac smoke
