@@ -248,10 +248,26 @@ describe('DesignSystemCreationFlow', () => {
         pendingPrompt: expect.stringContaining('Read the linked local code folders'),
       }),
     );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('tools connectors local-design-context --path'),
+      }),
+    );
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
       'context/source-context.md',
       expect.stringContaining('/Users/qingyu/work/comfyui'),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('## Local Folder Intake Runbook'),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('tools connectors local-design-context --path'),
     );
   });
 

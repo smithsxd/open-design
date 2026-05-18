@@ -175,6 +175,57 @@ describe('connectors tool CLI', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('writes bounded local design evidence snapshots from a linked folder', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-local-context-'));
+    process.chdir(tmpDir);
+    const sourceDir = path.join(tmpDir, 'cherry-studio');
+    await mkdir(path.join(sourceDir, 'src/components'), { recursive: true });
+    await mkdir(path.join(sourceDir, 'src/assets/fonts/ubuntu'), { recursive: true });
+    await mkdir(path.join(sourceDir, 'build'), { recursive: true });
+    await writeFile(path.join(sourceDir, 'README.md'), '# Cherry Studio\n\nDesktop AI chat workspace.');
+    await writeFile(path.join(sourceDir, 'package.json'), JSON.stringify({ name: 'cherry-studio' }));
+    await writeFile(path.join(sourceDir, 'src/styles.css'), ':root { --color-primary: #db6f57; }');
+    await writeFile(path.join(sourceDir, 'src/components/Button.tsx'), 'export function Button() { return <button className="rounded-lg" />; }');
+    await writeFile(path.join(sourceDir, 'src/assets/fonts/ubuntu/Ubuntu-Regular.ttf'), Buffer.from('font-data'));
+    await writeFile(path.join(sourceDir, 'build/logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    const result = await runConnectorsToolCli([
+      'local-design-context',
+      '--path',
+      sourceDir,
+      '--output',
+      'context/local-code/cherry-studio.md',
+      '--max-files',
+      '8',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(stdoutOutput.join(''))).toMatchObject({
+      ok: true,
+      sourcePath: sourceDir,
+      method: 'local-folder',
+      outputPath: 'context/local-code/cherry-studio.md',
+      snapshotFiles: expect.arrayContaining([
+        'context/local-code/cherry-studio/files/package.json',
+        'context/local-code/cherry-studio/files/src/styles.css',
+        'context/local-code/cherry-studio/files/src/components/Button.tsx',
+        'context/local-code/cherry-studio/files/src/assets/fonts/ubuntu/Ubuntu-Regular.ttf',
+        'context/local-code/cherry-studio/files/build/logo.png',
+      ]),
+    });
+    const evidenceNote = await readFile(path.join(tmpDir, 'context/local-code/cherry-studio.md'), 'utf8');
+    expect(evidenceNote).toContain('Local Design Evidence');
+    expect(evidenceNote).toContain('Source Evidence Inventory');
+    expect(evidenceNote).toContain('Brand assets and icons');
+    expect(evidenceNote).toContain('Fonts');
+    expect(evidenceNote).toContain('Claude Design-style package');
+    await expect(readFile(path.join(tmpDir, 'context/local-code/cherry-studio/files/src/styles.css'), 'utf8')).resolves.toContain('--color-primary');
+    const fontBytes = await readFile(path.join(tmpDir, 'context/local-code/cherry-studio/files/src/assets/fonts/ubuntu/Ubuntu-Regular.ttf'));
+    expect(fontBytes.length).toBeGreaterThan(0);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('falls back to bounded connector directory browsing when the repository tree is too large', async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-connectors-cli-'));
     process.chdir(tmpDir);

@@ -22,6 +22,7 @@ interface ParsedOptions {
   connectorId?: string;
   toolName?: string;
   inputPath?: string;
+  localPath?: string;
   repo?: string;
   ref?: string;
   outputPath?: string;
@@ -36,6 +37,7 @@ const CONNECTORS_USAGE = `Usage:
   od tools connectors list [--use-case personal_daily_digest] [--format compact]
   od tools connectors execute --connector <id> --tool <name> --input input.json
   od tools connectors github-design-context --repo owner/repo [--ref main] [--output context/github/owner-repo.md] [--max-files 48] [--require-connector]
+  od tools connectors local-design-context --path /path/to/project [--output context/local-code/project.md] [--max-files 48]
 
 Environment:
   OD_NODE_BIN     Node-compatible runtime for agent wrapper invocations
@@ -56,6 +58,8 @@ const GITHUB_GET_REPOSITORY_CONTENT_TOOL = 'github.github_get_repository_content
 
 const DEFAULT_GITHUB_CONTEXT_MAX_FILES = 48;
 const MAX_GITHUB_CONTEXT_FILES = 80;
+const DEFAULT_LOCAL_CONTEXT_MAX_FILES = 64;
+const MAX_LOCAL_CONTEXT_FILES = 120;
 const MAX_CONTEXT_FILE_BYTES = 120_000;
 const MAX_CONTEXT_ASSET_BYTES = 1_500_000;
 const MAX_MARKDOWN_EXCERPT_CHARS = 2_400;
@@ -75,7 +79,7 @@ interface GithubSnapshotFile {
   outputPath?: string;
   content: string | Buffer;
   bytes: number;
-  source: 'connector' | 'git-clone';
+  source: 'connector' | 'git-clone' | 'local-folder';
   binary?: boolean;
 }
 
@@ -106,6 +110,16 @@ interface GithubEvidenceInventorySection {
   title: GithubEvidenceInventoryCategory;
   description: string;
   files: GithubSnapshotFile[];
+}
+
+interface LocalDesignEvidence {
+  sourcePath: string;
+  sourceName: string;
+  method: 'local-folder';
+  treePaths: string[];
+  files: GithubSnapshotFile[];
+  readme?: { path: string; content: string };
+  warnings: string[];
 }
 
 interface ProcessRunResult {
@@ -153,6 +167,10 @@ function parseOptions(args: string[]): ParsedOptions | { error: string } {
       const value = rest[++index];
       if (!value) return { error: '--input requires a file path' };
       options.inputPath = value;
+    } else if (arg === '--path') {
+      const value = rest[++index];
+      if (!value) return { error: '--path requires a local folder path' };
+      options.localPath = value;
     } else if (arg === '--repo') {
       const value = rest[++index];
       if (!value) return { error: '--repo requires owner/repo or a GitHub repository URL' };
@@ -169,7 +187,10 @@ function parseOptions(args: string[]): ParsedOptions | { error: string } {
       const value = rest[++index];
       const parsed = value === undefined ? Number.NaN : Number.parseInt(value, 10);
       if (!Number.isFinite(parsed) || parsed < 1) return { error: '--max-files must be a positive integer' };
-      options.maxFiles = Math.min(parsed, MAX_GITHUB_CONTEXT_FILES);
+      options.maxFiles = Math.min(
+        parsed,
+        options.command === 'local-design-context' ? MAX_LOCAL_CONTEXT_FILES : MAX_GITHUB_CONTEXT_FILES,
+      );
     } else if (arg === '--require-connector') {
       options.requireConnector = true;
     } else if (arg === '--format') {
@@ -289,6 +310,19 @@ function defaultGithubContextOutputPath(repo: ParsedGitHubRepo): string {
 function githubSnapshotRoot(outputPath: string, repo: ParsedGitHubRepo): string {
   const dir = path.dirname(outputPath);
   return path.join(dir, repoSlug(repo), 'files');
+}
+
+function localSourceName(sourcePath: string): string {
+  return safePathSegment(path.basename(path.resolve(sourcePath)) || 'local-source');
+}
+
+function defaultLocalContextOutputPath(sourcePath: string): string {
+  return path.join('context', 'local-code', `${localSourceName(sourcePath)}.md`);
+}
+
+function localSnapshotRoot(outputPath: string, sourcePath: string): string {
+  const dir = path.dirname(outputPath);
+  return path.join(dir, localSourceName(sourcePath), 'files');
 }
 
 async function ensureParentDirectory(filePath: string): Promise<void> {
@@ -530,6 +564,23 @@ function selectDesignFiles(paths: string[], maxFiles: number): string[] {
     .map((entry) => entry.repoPath);
 }
 
+function selectDesignFilesWithPreferredReadme(paths: string[], maxFiles: number): string[] {
+  const selected = selectDesignFiles(paths, maxFiles);
+  const preferredReadme = preferredReadmePath(paths);
+  if (!preferredReadme || selected.includes(preferredReadme)) return selected;
+  return [preferredReadme, ...selected.filter((repoPath) => repoPath !== preferredReadme)].slice(0, maxFiles);
+}
+
+function preferredReadmePath(paths: string[]): string | undefined {
+  return paths
+    .filter((repoPath) => /(^|\/)readme\.(md|mdx|txt|rst)$/iu.test(repoPath))
+    .sort((left, right) => {
+      const leftSegments = left.split('/').length;
+      const rightSegments = right.split('/').length;
+      return leftSegments - rightSegments || left.localeCompare(right);
+    })[0];
+}
+
 async function collectGithubTreePathsWithConnector(
   baseUrl: URL,
   token: string,
@@ -708,9 +759,10 @@ async function collectGithubEvidenceWithGitClone(
   try {
     const clone = await cloneGithubRepository(repo, cloneDir, options.ref);
     const paths = await listLocalRepoFiles(cloneDir);
-    const selectedPaths = selectDesignFiles(paths, options.maxFiles);
+    const selectedPaths = selectDesignFilesWithPreferredReadme(paths, options.maxFiles);
     const files: GithubSnapshotFile[] = [];
     let readme: GithubDesignEvidence['readme'];
+    const preferredReadme = preferredReadmePath(paths);
     for (const repoPath of selectedPaths) {
       const absolutePath = path.join(cloneDir, repoPath);
       const fileStat = await stat(absolutePath);
@@ -730,7 +782,7 @@ async function collectGithubEvidenceWithGitClone(
       }
       if (!isTextSnapshotPath(normalizedPath) || fileStat.size > MAX_CONTEXT_FILE_BYTES) continue;
       const content = await readFile(absolutePath, 'utf8');
-      if (!readme && /(^|\/)readme\.(md|mdx|txt|rst)$/iu.test(normalizedPath)) {
+      if (!readme && repoPath === preferredReadme) {
         readme = { path: repoPath, content };
         continue;
       }
@@ -759,6 +811,75 @@ async function collectGithubEvidenceWithGitClone(
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
+}
+
+async function collectLocalDesignEvidence(
+  sourcePath: string,
+  options: { maxFiles: number },
+): Promise<LocalDesignEvidence> {
+  const resolvedSourcePath = path.resolve(sourcePath);
+  const sourceStat = await stat(resolvedSourcePath);
+  if (!sourceStat.isDirectory()) {
+    throw new Error(`local-design-context requires --path to be a directory: ${resolvedSourcePath}`);
+  }
+  const paths = await listLocalRepoFiles(resolvedSourcePath);
+  const selectedPaths = selectDesignFilesWithPreferredReadme(paths, options.maxFiles);
+  const files: GithubSnapshotFile[] = [];
+  const warnings: string[] = [];
+  let readme: LocalDesignEvidence['readme'];
+  const preferredReadme = preferredReadmePath(paths);
+
+  for (const repoPath of selectedPaths) {
+    const absolutePath = path.join(resolvedSourcePath, repoPath);
+    const fileStat = await stat(absolutePath);
+    if (!fileStat.isFile()) continue;
+    const normalizedPath = repoPath.toLowerCase();
+    const binary = isBinaryDesignAssetPath(normalizedPath);
+    if (binary) {
+      if (fileStat.size > MAX_CONTEXT_ASSET_BYTES) {
+        warnings.push(`Skipped ${repoPath}: binary asset exceeds ${MAX_CONTEXT_ASSET_BYTES} bytes`);
+        continue;
+      }
+      files.push({
+        repoPath,
+        content: await readFile(absolutePath),
+        bytes: fileStat.size,
+        source: 'local-folder',
+        binary: true,
+      });
+      continue;
+    }
+    if (!isTextSnapshotPath(normalizedPath)) continue;
+    if (fileStat.size > MAX_CONTEXT_FILE_BYTES) {
+      warnings.push(`Skipped ${repoPath}: text file exceeds ${MAX_CONTEXT_FILE_BYTES} bytes`);
+      continue;
+    }
+    const content = await readFile(absolutePath, 'utf8');
+    if (!readme && repoPath === preferredReadme) {
+      readme = { path: repoPath, content };
+      continue;
+    }
+    files.push({
+      repoPath,
+      content,
+      bytes: Buffer.byteLength(content, 'utf8'),
+      source: 'local-folder',
+    });
+  }
+
+  if (!readme && files.length === 0) {
+    throw new Error(`No design-relevant local evidence was selected from ${resolvedSourcePath}`);
+  }
+
+  return {
+    sourcePath: resolvedSourcePath,
+    sourceName: localSourceName(resolvedSourcePath),
+    method: 'local-folder',
+    treePaths: paths,
+    files,
+    ...(readme === undefined ? {} : { readme }),
+    warnings,
+  };
 }
 
 function connectorIntakeIsRecoverable(error: unknown): boolean {
@@ -947,8 +1068,30 @@ async function writeGithubDesignEvidence(outputPath: string, evidence: GithubDes
   return nextEvidence;
 }
 
+async function writeLocalDesignEvidence(outputPath: string, evidence: LocalDesignEvidence): Promise<LocalDesignEvidence> {
+  const resolvedOutputPath = path.resolve(outputPath);
+  const snapshotRoot = localSnapshotRoot(resolvedOutputPath, evidence.sourcePath);
+  const writtenFiles: GithubSnapshotFile[] = [];
+  for (const file of evidence.files) {
+    const safeRelativePath = safeRepoRelativePath(file.repoPath);
+    if (!safeRelativePath) continue;
+    const fileOutputPath = path.join(snapshotRoot, safeRelativePath);
+    await ensureParentDirectory(fileOutputPath);
+    if (file.binary) {
+      await writeFile(fileOutputPath, file.content);
+    } else {
+      await writeFile(fileOutputPath, file.content, 'utf8');
+    }
+    writtenFiles.push({ ...file, outputPath: path.relative(process.cwd(), fileOutputPath).split(path.sep).join('/') });
+  }
+  const nextEvidence = { ...evidence, files: writtenFiles };
+  await ensureParentDirectory(resolvedOutputPath);
+  await writeFile(resolvedOutputPath, renderLocalDesignEvidenceMarkdown(nextEvidence), 'utf8');
+  return nextEvidence;
+}
+
 function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): string {
-  const inventory = buildGithubEvidenceInventory(evidence);
+  const inventory = buildDesignEvidenceInventory(evidence.files);
   const lines = [
     `# GitHub Design Evidence: ${evidence.repo.owner}/${evidence.repo.repo}`,
     '',
@@ -1016,7 +1159,72 @@ function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): str
   return lines.join('\n');
 }
 
-function buildGithubEvidenceInventory(evidence: GithubDesignEvidence): GithubEvidenceInventorySection[] {
+function renderLocalDesignEvidenceMarkdown(evidence: LocalDesignEvidence): string {
+  const inventory = buildDesignEvidenceInventory(evidence.files);
+  const lines = [
+    `# Local Design Evidence: ${evidence.sourceName}`,
+    '',
+    `Source path: ${evidence.sourcePath}`,
+    `Read method: ${evidence.method}`,
+    `Local paths discovered: ${evidence.treePaths.length}`,
+    `Snapshot files written: ${evidence.files.length}`,
+    '',
+    '## Intake Status',
+    '',
+    '- Local source folder was read through bounded `od tools connectors local-design-context` intake.',
+  ];
+  if (evidence.warnings.length > 0) {
+    lines.push('', '## Warnings', '', ...evidence.warnings.map((warning) => `- ${warning}`));
+  }
+  if (evidence.readme) {
+    lines.push('', `## README (${evidence.readme.path})`, '', '```md', excerpt(evidence.readme.content), '```');
+  }
+  if (inventory.length > 0) {
+    lines.push('', '## Source Evidence Inventory', '');
+    for (const section of inventory) {
+      lines.push(`### ${section.title}`, '', section.description, '');
+      for (const file of section.files) {
+        const kind = file.binary ? 'binary asset' : 'source';
+        lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''} (${kind})`);
+      }
+      lines.push('');
+    }
+  }
+  if (evidence.files.length > 0) {
+    lines.push('', '## Files Inspected', '');
+    for (const file of evidence.files) {
+      const kind = file.binary ? ', binary asset' : '';
+      lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''} (${file.bytes} bytes, ${file.source}${kind})`);
+    }
+    const binaryFiles = evidence.files.filter((file) => file.binary);
+    if (binaryFiles.length > 0) {
+      lines.push('', '## Binary Assets Preserved', '');
+      for (const file of binaryFiles) {
+        lines.push(`- ${file.repoPath}${file.outputPath ? ` -> \`${file.outputPath}\`` : ''}`);
+      }
+    }
+    const textFiles = evidence.files.filter((file): file is GithubSnapshotFile & { content: string } => !file.binary && typeof file.content === 'string');
+    if (textFiles.length > 0) {
+      lines.push('', '## Design-Relevant Excerpts', '');
+      for (const file of textFiles.slice(0, 12)) {
+        lines.push(`### ${file.repoPath}`, '', fencedExcerpt(file.repoPath, file.content), '');
+      }
+    }
+  }
+  lines.push(
+    '',
+    '## Next Design-System Work',
+    '',
+    '- Use these local source paths and snapshots as evidence before writing `DESIGN.md`.',
+    '- Convert the inventory above into a Claude Design-style package: `README.md`, `SKILL.md`, `colors_and_type.css`, `preview/colors-*`, `preview/typography-specimens.html`, `preview/spacing-*`, `preview/components-*`, `preview/brand-assets.html`, `ui_kits/app/`, and preserved `assets/` or `fonts/` when evidence exists.',
+    '- Extract concrete colors, typography, spacing, radius, component behavior, assets, and product tone only when supported by inspected files.',
+    '- If evidence is missing or ambiguous, mark that uncertainty instead of inventing tokens.',
+    '',
+  );
+  return lines.join('\n');
+}
+
+function buildDesignEvidenceInventory(files: GithubSnapshotFile[]): GithubEvidenceInventorySection[] {
   const descriptions: Record<GithubEvidenceInventoryCategory, string> = {
     'Product docs and manifests': 'Use these to understand product purpose, dependency stack, scripts, and public naming.',
     'Brand assets and icons': 'Preserve these into `assets/` or `build/` references and reflect them in `preview/brand-assets.html`.',
@@ -1038,8 +1246,8 @@ function buildGithubEvidenceInventory(evidence: GithubDesignEvidence): GithubEvi
     'Other design evidence',
   ];
   const grouped = new Map<GithubEvidenceInventoryCategory, GithubSnapshotFile[]>();
-  for (const file of evidence.files) {
-    const category = githubEvidenceInventoryCategory(file.repoPath);
+  for (const file of files) {
+    const category = designEvidenceInventoryCategory(file.repoPath);
     const files = grouped.get(category) ?? [];
     files.push(file);
     grouped.set(category, files);
@@ -1052,7 +1260,7 @@ function buildGithubEvidenceInventory(evidence: GithubDesignEvidence): GithubEvi
     .filter((section) => section.files.length > 0);
 }
 
-function githubEvidenceInventoryCategory(repoPath: string): GithubEvidenceInventoryCategory {
+function designEvidenceInventoryCategory(repoPath: string): GithubEvidenceInventoryCategory {
   const normalized = repoPath.toLowerCase();
   if (/(^|\/)(readme\.(md|mdx|txt|rst)|package\.json)$/u.test(normalized)) {
     return 'Product docs and manifests';
@@ -1158,6 +1366,23 @@ async function runGithubDesignContext(options: ParsedOptions): Promise<ToolCliRe
     repo: `${repo.owner}/${repo.repo}`,
     method: written.method,
     ...(written.localCloneMethod === undefined ? {} : { localCloneMethod: written.localCloneMethod }),
+    outputPath: path.relative(process.cwd(), path.resolve(outputPath)).split(path.sep).join('/'),
+    snapshotFiles: written.files.map((file) => file.outputPath).filter(Boolean),
+    warnings: written.warnings,
+  });
+  return { exitCode: 0 };
+}
+
+async function runLocalDesignContext(options: ParsedOptions): Promise<ToolCliResult> {
+  if (!options.localPath) return fail('local-design-context requires --path /path/to/project');
+  const maxFiles = options.maxFiles ?? DEFAULT_LOCAL_CONTEXT_MAX_FILES;
+  const outputPath = options.outputPath ?? defaultLocalContextOutputPath(options.localPath);
+  const evidence = await collectLocalDesignEvidence(options.localPath, { maxFiles });
+  const written = await writeLocalDesignEvidence(outputPath, evidence);
+  writeJson({
+    ok: true,
+    sourcePath: written.sourcePath,
+    method: written.method,
     outputPath: path.relative(process.cwd(), path.resolve(outputPath)).split(path.sep).join('/'),
     snapshotFiles: written.files.map((file) => file.outputPath).filter(Boolean),
     warnings: written.warnings,
@@ -1290,6 +1515,15 @@ export async function runConnectorsToolCli(args: string[]): Promise<ToolCliResul
   if (options.command === 'github-design-context') {
     try {
       return await runGithubDesignContext(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return fail(message);
+    }
+  }
+
+  if (options.command === 'local-design-context') {
+    try {
+      return await runLocalDesignContext(options);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return fail(message);

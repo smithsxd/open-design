@@ -2558,6 +2558,7 @@ function buildCreationAgentPrompt(
   const githubUrls = githubUrlsFromState(state);
   const localCode = localCodeReferences(state);
   const githubRunbook = buildGithubConnectorRunbook(githubUrls);
+  const localFolderRunbook = buildLocalFolderRunbook(state.codeFolders);
   return [
     'Create this project as a complete Open Design design system workspace.',
     '',
@@ -2578,7 +2579,7 @@ function buildCreationAgentPrompt(
     '- Reviewable previews must appear in the right-side `Design System` tab and show real modules with preview cards, not a standalone marketing page or a single placeholder panel.',
     '',
     'Core execution order:',
-    '1. Read `context/source-context.md` first, then run every intake command it lists for linked GitHub repositories before editing design-system files.',
+    '1. Read `context/source-context.md` first, then run every intake command it lists for linked GitHub repositories and linked local code folders before editing design-system files.',
     '2. Do not write `DESIGN.md`, token files, previews, UI-kit examples, or asset notes from URL text alone. When GitHub, local code, Figma, or assets were provided, preserve concrete evidence under `context/` and use it as the basis for the design-system files.',
     '3. Before writing the design-system files, inventory the local evidence for product identity, real color/theme tokens, font families, brand assets, app shell layout, navigation, chat/input surfaces, and reusable components. Use this inventory to avoid generic tokens.',
     '4. Copy or reference high-signal source component examples from the snapshots when they explain the design system better than prose alone.',
@@ -2586,6 +2587,7 @@ function buildCreationAgentPrompt(
     '',
     'Completion gate:',
     '- For each linked GitHub repository, there must be a `context/github/*.md` evidence note plus command-written snapshots under `context/github/*/files/` before writing final design-system rules or previews. The snapshots should include theme/token/source files and any available binary assets or fonts selected by the intake command.',
+    '- For each linked local code folder, run the listed `local-design-context` command and use its `context/local-code/*.md` evidence note plus command-written snapshots under `context/local-code/*/files/` before writing final design-system rules or previews. Browser-copied snapshots already under `context/local-code/` are also valid local evidence.',
     '- Do not call GitHub connector tree/content/raw tools directly from the agent. Use only the bounded `github-design-context` command listed in `context/source-context.md`; it handles large repositories by narrowing and snapshotting evidence locally.',
     '- If the bounded command records that it used its shallow local clone fallback because the connector was unavailable, permission-blocked, rate-limited, or oversized, treat those command-written snapshots as valid evidence and continue.',
     '- For private repositories, local git credentials or GitHub CLI authentication (`gh auth login --web`) are valid intake paths because the command still writes local evidence snapshots.',
@@ -2601,7 +2603,7 @@ function buildCreationAgentPrompt(
       ? githubRunbook
       : '',
     state.codeFolders.length
-      ? `Read the linked local code folders that Open Design attached to this project: ${state.codeFolders.join(', ')}. Treat them as source context only unless the user asks you to edit them.`
+      ? `Read the linked local code folders that Open Design attached to this project: ${state.codeFolders.join(', ')}. Treat them as source context only unless the user asks you to edit them.\n\n${localFolderRunbook}`
       : '',
     stagedLocalCode?.uploadedPaths.length
       ? `Inspect the copied local code snapshot files in this project under \`${LOCAL_CODE_UPLOAD_ROOT}/\`: ${stagedLocalCode.uploadedPaths.slice(0, 20).join(', ')}${stagedLocalCode.uploadedPaths.length > 20 ? `, and ${stagedLocalCode.uploadedPaths.length - 20} more` : ''}.`
@@ -2672,6 +2674,7 @@ function buildSourceContextManifest(
   if (linkedFolders.length > 0) {
     sections.push('Linked folders readable by the local agent:');
     sections.push(...linkedFolders.map((folder) => `- ${folder}`));
+    sections.push('', '### Local Folder Intake Runbook', '', buildLocalFolderRunbook(linkedFolders));
   } else {
     sections.push('Linked folders readable by the local agent: none.');
   }
@@ -2726,10 +2729,26 @@ function buildSourceContextManifest(
     '- ui_kits/app/ should contain an applied interface example, with modular component files when the source snapshots include representative product surfaces.',
     '- assets/, fonts/, and context/ should preserve logos, app icons, tray icons, wordmarks, font files, provenance, and source notes for future projects.',
     '- GitHub evidence must come from the bounded `github-design-context` command, not direct connector tree/content/raw tool calls. The command may record connector use, local git clone, or authenticated GitHub CLI clone when connector output is unavailable, rate-limited, or oversized.',
+    '- Linked local folder evidence should come from the bounded `local-design-context` command, which writes a local evidence note and snapshots under `context/local-code/` before final design-system rules are drafted.',
     '- Draft design systems cannot be used by other projects until published.',
   );
 
   return `${sections.join('\n')}\n`;
+}
+
+function buildLocalFolderRunbook(folders: string[]): string {
+  if (folders.length === 0) return '';
+  const intakeCommands = folders
+    .map((folder, index) => `   - \`"$OD_NODE_BIN" "$OD_BIN" tools connectors local-design-context --path ${shellQuote(folder)} --output context/local-code/${localEvidenceFileName(folder, index)}\``)
+    .join('\n');
+  return [
+    'Local folder intake is required before drafting from linked local code folders:',
+    '1. For each linked folder, run the bounded local intake command before writing design-system files:',
+    intakeCommands,
+    '2. The command selects design-system-relevant source files plus available logos/icons/fonts, writes a reviewable evidence note, and copies snapshots under `context/local-code/`.',
+    '3. Inspect the generated evidence note plus snapshots for README, package manifests, Tailwind/theme/token files, global CSS, font declarations, component source, layout shells, icons/logos/assets, and representative app entry files.',
+    '4. If the command cannot read a linked folder or write snapshots, stop and explain the local file access problem instead of inventing tokens from the folder name.',
+  ].join('\n');
 }
 
 function buildGithubConnectorRunbook(githubUrls: string[]): string {
@@ -2750,6 +2769,12 @@ function buildGithubConnectorRunbook(githubUrls: string[]): string {
     '8. Inspect the generated evidence note plus snapshots for README, package manifests, Tailwind/theme/token files, global CSS, font declarations, component source for buttons/forms/navigation/cards/tables, layout shells, icons/logos/assets, and representative app entry files.',
     '9. Use that evidence to create or update `DESIGN.md`, `colors_and_type.css`, `README.md`, `SKILL.md`, `preview/`, `ui_kits/app/`, `assets/`, and `fonts/` so the Design System tab can review the output as a reusable package.',
   ].join('\n');
+}
+
+function localEvidenceFileName(folder: string, index: number): string {
+  const parts = folder.split(/[\\/]+/u).filter(Boolean);
+  const basename = sanitizeEvidenceSegment(parts.at(-1) ?? 'local-source');
+  return `${basename}${index > 0 ? `-${index + 1}` : ''}.md`;
 }
 
 function githubEvidenceFileName(url: string): string {
