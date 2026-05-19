@@ -272,11 +272,15 @@ jobs:
           fi
 
   daemon_workspace_tests:
-    name: Daemon workspace tests
+    name: Daemon workspace tests (${{ matrix.shard }}/2)
     needs: [change_scopes]
     if: ${{ needs.change_scopes.outputs.daemon_tests_required == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     steps:
       - name: Checkout
@@ -311,7 +315,7 @@ jobs:
         run: pnpm --filter @open-design/daemon build
 
       - name: Daemon workspace tests
-        run: pnpm --filter @open-design/daemon test
+        run: pnpm --filter @open-design/daemon exec vitest run -c vitest.config.ts --shard=${{ matrix.shard }}/2
 
   web_workspace_tests:
     name: Web workspace tests
