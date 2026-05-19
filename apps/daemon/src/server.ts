@@ -71,6 +71,7 @@ import {
   listUserDesignSystemFiles,
   listUserDesignSystemRevisions,
   readDesignSystem,
+  readDesignSystemPackageInfo,
   readUserDesignSystemFile,
   resolveDesignSystemAssets,
   updateUserDesignSystem,
@@ -2637,6 +2638,16 @@ export async function startServer({
     );
   }
 
+  async function readAvailableDesignSystemPackageInfo(id) {
+    if (typeof id === 'string' && id.startsWith('user:')) {
+      return readDesignSystemPackageInfo(USER_DESIGN_SYSTEMS_DIR, id, { idPrefix: 'user:' });
+    }
+    return (
+      (await readDesignSystemPackageInfo(DESIGN_SYSTEMS_DIR, id))
+      ?? (await readDesignSystemPackageInfo(USER_DESIGN_SYSTEMS_DIR, id))
+    );
+  }
+
   function isProjectUsableDesignSystem(summary) {
     return summary?.status !== 'draft';
   }
@@ -4501,7 +4512,8 @@ export async function startServer({
       const body = projectBody ?? await readAvailableDesignSystem(req.params.id);
       if (body === null || !summary)
         return res.status(404).json({ error: 'design system not found' });
-      const detail = { ...summary, body };
+      const packageInfo = await readAvailableDesignSystemPackageInfo(req.params.id);
+      const detail = { ...summary, body, ...(packageInfo ? { packageInfo } : {}) };
       res.json({ ...detail, designSystem: detail });
     } catch (err) {
       res.status(500).json({ error: String(err) });

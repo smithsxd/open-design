@@ -19,6 +19,7 @@ import {
   listDesignSystems,
   readDesignSystem,
   readDesignSystemAssets,
+  readDesignSystemPackageInfo,
   readDesignSystemPullFile,
   resolveDesignSystemAssets,
 } from '../src/design-systems.js';
@@ -373,6 +374,61 @@ describe('Design System Project manifest runtime consumption', () => {
     });
     await expect(readDesignSystemPullFile(root, 'pull-project', 'preview/spacing.html')).resolves.toBeNull();
     await expect(readDesignSystemPullFile(root, 'pull-project', '../pull-project/preview/colors.html')).resolves.toBeNull();
+  });
+
+  it('summarizes manifest and source evidence for the detail page', async () => {
+    const root = fresh();
+    const dir = writeDesignSystemProject(root, 'detail-project', {
+      manifest: {
+        schemaVersion: 'od-design-system-project/v1',
+        id: 'detail-project',
+        name: 'Detail Project',
+        category: 'Imported',
+        source: { type: 'local', path: '/tmp/project' },
+        files: {
+          design: 'DESIGN.md',
+          tokens: 'tokens.css',
+          components: 'components.html',
+        },
+        usage: 'USAGE.md',
+        componentsManifest: 'components.manifest.json',
+        importMode: 'hybrid',
+        preview: {
+          dir: 'preview',
+          pages: [{ path: 'preview/colors.html', role: 'colors', title: 'Colors' }],
+        },
+        sourceFiles: {
+          scanned: 'source/scanned-files.json',
+          evidence: 'source/evidence.md',
+          tokens: 'source/tokens.source.json',
+          snippets: 'source/snippets/INDEX.json',
+        },
+      },
+    });
+    mkdirSync(path.join(dir, 'source', 'snippets'), { recursive: true });
+    writeFileSync(path.join(dir, 'source', 'scanned-files.json'), JSON.stringify({ files: [{ path: 'Button.tsx' }] }));
+    writeFileSync(path.join(dir, 'source', 'evidence.md'), '# Evidence\n\n- Buttons matched source.');
+    writeFileSync(path.join(dir, 'source', 'tokens.source.json'), JSON.stringify({
+      tokenCount: 7,
+      confidence: { color: 'high', spacing: 0.4 },
+    }));
+    writeFileSync(path.join(dir, 'source', 'snippets', 'INDEX.json'), JSON.stringify({
+      snippets: [{ path: 'source/snippets/Button.tsx' }],
+    }));
+
+    await expect(readDesignSystemPackageInfo(root, 'detail-project')).resolves.toMatchObject({
+      manifest: {
+        usage: 'USAGE.md',
+        importMode: 'hybrid',
+        preview: { pages: [{ path: 'preview/colors.html' }] },
+      },
+      sourceEvidence: {
+        scannedFileCount: 1,
+        tokenCount: 7,
+        snippetCount: 1,
+        confidence: { color: 'high', spacing: 0.4 },
+      },
+    });
   });
 });
 

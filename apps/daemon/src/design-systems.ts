@@ -76,6 +76,17 @@ export type DesignSystemPullFileDetail = {
   content: string;
 };
 
+export type DesignSystemPackageInfo = {
+  manifest?: DesignSystemProjectManifest;
+  sourceEvidence?: {
+    scannedFileCount?: number;
+    tokenCount?: number;
+    snippetCount?: number;
+    confidence?: Record<string, string | number>;
+    evidenceExcerpt?: string;
+  };
+};
+
 export type DesignSystemRevision = {
   id: string;
   designSystemId: string;
@@ -330,6 +341,24 @@ export async function readDesignSystem(
   } catch {
     return null;
   }
+}
+
+export async function readDesignSystemPackageInfo(
+  root: string,
+  id: string,
+  options: { idPrefix?: string } = {},
+): Promise<DesignSystemPackageInfo | null> {
+  const dirId = stripPrefixAndValidateId(id, options.idPrefix);
+  if (!dirId) return null;
+  const brandRoot = path.join(root, dirId);
+  const manifest = await readProjectManifest(brandRoot, dirId);
+  if (manifest === null) return null;
+
+  const sourceEvidence = await readDesignSystemSourceEvidence(brandRoot, manifest);
+  return {
+    manifest,
+    ...(sourceEvidence ? { sourceEvidence } : {}),
+  };
 }
 
 /**
@@ -647,6 +676,59 @@ function isTextDesignSystemPullFile(relativePath: string): boolean {
     '.yaml',
     '.yml',
   ]).has(ext);
+}
+
+async function readDesignSystemSourceEvidence(
+  brandRoot: string,
+  manifest: DesignSystemProjectManifest,
+): Promise<DesignSystemPackageInfo['sourceEvidence'] | undefined> {
+  const [scanned, tokens, snippets, evidence] = await Promise.all([
+    readManifestJsonOptional(brandRoot, manifest.sourceFiles?.scanned),
+    readManifestJsonOptional(brandRoot, manifest.sourceFiles?.tokens),
+    readManifestJsonOptional(brandRoot, manifest.sourceFiles?.snippets),
+    readManifestFileOptional(brandRoot, manifest.sourceFiles?.evidence ?? ''),
+  ]);
+
+  const out: NonNullable<DesignSystemPackageInfo['sourceEvidence']> = {};
+  if (scanned && typeof scanned === 'object' && !Array.isArray(scanned)) {
+    const files = (scanned as { files?: unknown }).files;
+    if (Array.isArray(files)) out.scannedFileCount = files.length;
+  }
+  if (tokens && typeof tokens === 'object' && !Array.isArray(tokens)) {
+    const tokenCount = (tokens as { tokenCount?: unknown }).tokenCount;
+    if (typeof tokenCount === 'number') out.tokenCount = tokenCount;
+    const confidence = (tokens as { confidence?: unknown }).confidence;
+    if (confidence && typeof confidence === 'object' && !Array.isArray(confidence)) {
+      const cleanConfidence: Record<string, string | number> = {};
+      for (const [key, value] of Object.entries(confidence)) {
+        if (typeof value === 'string' || typeof value === 'number') cleanConfidence[key] = value;
+      }
+      if (Object.keys(cleanConfidence).length > 0) out.confidence = cleanConfidence;
+    }
+  }
+  if (snippets && typeof snippets === 'object' && !Array.isArray(snippets)) {
+    const entries = (snippets as { snippets?: unknown }).snippets;
+    if (Array.isArray(entries)) out.snippetCount = entries.length;
+  }
+  if (typeof evidence === 'string' && evidence.trim().length > 0) {
+    out.evidenceExcerpt = evidence.trim().split(/\r?\n/).filter(Boolean).slice(0, 5).join('\n');
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+async function readManifestJsonOptional(
+  brandRoot: string,
+  relativePath: string | undefined,
+): Promise<unknown | undefined> {
+  if (!relativePath) return undefined;
+  const raw = await readManifestFileOptional(brandRoot, relativePath);
+  if (raw === undefined) return undefined;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function createUserDesignSystem(

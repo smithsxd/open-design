@@ -162,6 +162,49 @@ export interface DesignSystemSummary {
 
 export interface DesignSystemDetail extends DesignSystemSummary {
   body: string;
+  packageInfo?: DesignSystemPackageInfo;
+}
+
+export interface DesignSystemPackageInfo {
+  manifest?: {
+    schemaVersion: string;
+    id: string;
+    name: string;
+    category: string;
+    source?: { type?: string; url?: string; path?: string; branch?: string; commit?: string; importedAt?: string };
+    files?: {
+      design?: string;
+      tokens?: string;
+      components?: string;
+    };
+    usage?: string;
+    componentsManifest?: string;
+    importMode?: string;
+    craft?: {
+      applies?: string[];
+      suggested?: string[];
+      exemptions?: string[];
+    };
+    fonts?: Array<{ family?: string; weight?: string | number; style?: string; file?: string }>;
+    preview?: {
+      dir?: string;
+      pages?: Array<{ path?: string; role?: string; title?: string }>;
+    };
+    sourceFiles?: {
+      scanned?: string;
+      evidence?: string;
+      tokens?: string;
+      snippets?: string;
+    };
+    assetsDir?: string;
+  };
+  sourceEvidence?: {
+    scannedFileCount?: number;
+    tokenCount?: number;
+    snippetCount?: number;
+    confidence?: Record<string, string | number>;
+    evidenceExcerpt?: string;
+  };
 }
 
 export interface DesignSystemsResponse {
