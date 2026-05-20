@@ -355,6 +355,72 @@ export async function submitChatRunToolResult(
   }
 }
 
+export interface VelaUser {
+  id: string;
+  email: string;
+  name?: string;
+  image?: string | null;
+  plan?: string;
+}
+
+export interface VelaLoginStatus {
+  loggedIn: boolean;
+  profile: string;
+  user: VelaUser | null;
+  configPath: string;
+}
+
+// AMR (vela) login surfaces three thin endpoints on the daemon:
+//   GET  /api/integrations/vela/status   — read ~/.vela/config.json projection
+//   POST /api/integrations/vela/login    — spawn `vela login` (vela opens browser itself)
+//   POST /api/integrations/vela/logout   — delete ~/.vela/config.json
+// The Settings UI polls /status after kicking off /login to detect completion.
+export async function fetchVelaLoginStatus(): Promise<VelaLoginStatus | null> {
+  try {
+    const resp = await fetch('/api/integrations/vela/status');
+    if (!resp.ok) return null;
+    return (await resp.json()) as VelaLoginStatus;
+  } catch {
+    return null;
+  }
+}
+
+export interface StartVelaLoginResult {
+  ok: boolean;
+  status: number;
+  pid?: number;
+  alreadyRunning?: boolean;
+  error?: string;
+}
+
+export async function startVelaLogin(): Promise<StartVelaLoginResult> {
+  try {
+    const resp = await fetch('/api/integrations/vela/login', { method: 'POST' });
+    if (resp.ok) {
+      const body = (await resp.json()) as { pid?: number };
+      return { ok: true, status: resp.status, pid: body.pid };
+    }
+    const body = (await resp.json().catch(() => null)) as { error?: string } | null;
+    return {
+      ok: false,
+      status: resp.status,
+      alreadyRunning: resp.status === 409,
+      error: body?.error ?? '',
+    };
+  } catch (err) {
+    return { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function velaLogout(): Promise<{ ok: boolean }> {
+  try {
+    const resp = await fetch('/api/integrations/vela/logout', { method: 'POST' });
+    return { ok: resp.ok };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export async function listActiveChatRuns(
   projectId: string,
   conversationId: string,

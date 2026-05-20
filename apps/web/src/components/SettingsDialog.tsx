@@ -27,6 +27,7 @@ import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
 import type { Locale } from '../i18n';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
+import { AmrLoginPill } from './AmrLoginPill';
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import {
@@ -2412,6 +2413,7 @@ export function SettingsDialog({
                                   </div>
                                 </div>
                               </button>
+                              {a.id === 'amr' ? <AmrLoginPill /> : null}
                               {active ? (
                                 <button
                                   type="button"

@@ -37,6 +37,11 @@ import {
   spawnEnvForAgent,
 } from './agents.js';
 import { resolveModelForAgent } from './runtimes/models.js';
+import {
+  forgetVelaLogin,
+  readVelaLoginStatus,
+  spawnVelaLogin,
+} from './integrations/vela.js';
 import { migrateLegacyDataDirSync } from './legacy-data-migrator.js';
 import {
   consumedImportNonces,
@@ -4966,6 +4971,42 @@ export async function startServer({
       const config = await readAppConfig(RUNTIME_DATA_DIR);
       const list = await detectAgents(config.agentCliEnv ?? {});
       res.json({ agents: list });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // AMR (vela) login integration — see `apps/daemon/src/integrations/vela.ts`.
+  // The vela CLI owns the device-authorization UX (URL + code + browser open);
+  // these routes only surface enough state for Open Design's Settings card to
+  // show login status and trigger a login from a button.
+  app.get('/api/integrations/vela/status', (_req, res) => {
+    try {
+      res.json(readVelaLoginStatus());
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post('/api/integrations/vela/login', async (_req, res) => {
+    try {
+      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
+      const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
+      const spawned = spawnVelaLogin({ configuredEnv });
+      res.status(202).json(spawned);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // "already running" is a 409 (resolvable by waiting/polling); everything
+      // else (missing vela binary, spawn failure) is a 500.
+      const status = /already running/i.test(message) ? 409 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  app.post('/api/integrations/vela/logout', (_req, res) => {
+    try {
+      forgetVelaLogin();
+      res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
