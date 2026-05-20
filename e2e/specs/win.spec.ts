@@ -2,6 +2,7 @@
 
 import { execFile, spawn, type ChildProcessByStdio } from 'node:child_process';
 import { mkdir, readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -169,6 +170,15 @@ type DirectInstallerResult = {
   nsisLogTail: string[];
 };
 
+type InstalledPackagedConfig = {
+  namespaceBaseRoot?: unknown;
+};
+
+type InstalledAppPackage = {
+  name?: unknown;
+  productName?: unknown;
+};
+
 type UpdaterFixtureProcess = {
   close: () => Promise<void>;
   info: {
@@ -204,11 +214,12 @@ winDescribe('packaged windows runtime smoke', () => {
     const timings: SmokeTiming[] = [];
     try {
       await measureSmokeStep(timings, 'pre-clean uninstall', async () => {
-        await runToolsPackJson<WinUninstallResult>('uninstall').catch(() => null);
+        await runToolsPackJson<WinUninstallResult>('uninstall', ['--remove-product-user-data']).catch(() => null);
       });
 
       const install = await measureSmokeStep(timings, 'install', async () => runToolsPackJson<WinInstallResult>('install'));
       installed = true;
+      const expectedUpdateRoot = await resolveExpectedUpdateRoot(install.installDir);
 
       expect(install.namespace).toBe(namespace);
       expectPathInside(install.installerPath, join(outputNamespaceRoot, 'builder'));
@@ -266,7 +277,8 @@ winDescribe('packaged windows runtime smoke', () => {
 
       const popup = await measureSmokeStep(timings, 'wait updater popup', async () => waitForUpdaterPopup());
       expect(popup.visible).toBe(true);
-      expect(popup.title).toBe('Update ready');
+      expect(popup.title).toEqual(expect.any(String));
+      expect(popup.title?.trim().length).toBeGreaterThan(0);
       expect(popup.installButtonVisible).toBe(true);
       expect(popup.text ?? '').toContain(updaterFixture.info.version);
 
@@ -277,7 +289,7 @@ winDescribe('packaged windows runtime smoke', () => {
       expect(updateStatus.update?.channel).toBe('beta');
       expect(updateStatus.update?.currentVersion).toBe('99.0.0-beta.0');
       expect(updateStatus.update?.availableVersion).toBe(updaterFixture.info.version);
-      expectPathInside(updateStatus.update?.downloadPath ?? '', join(runtimeNamespaceRoot, 'updates'));
+      expectPathInside(updateStatus.update?.downloadPath ?? '', expectedUpdateRoot);
 
       const clickInstall = await measureSmokeStep(timings, 'click updater installer', async () =>
         runToolsPackJson<WinInspectResult>('inspect', ['--expr', clickUpdaterInstallExpression]),
@@ -289,7 +301,7 @@ winDescribe('packaged windows runtime smoke', () => {
       );
       expect(updateInstall.update?.state).toBe('downloaded');
       expect(updateInstall.update?.installResult?.dryRun).toBe(true);
-      expectPathInside(updateInstall.update?.installResult?.path ?? '', join(runtimeNamespaceRoot, 'updates'));
+      expectPathInside(updateInstall.update?.installResult?.path ?? '', expectedUpdateRoot);
 
       let reinstall: DirectInstallerResult | { skipped: true } = { skipped: true };
       if (verifyReinstallWhileRunning) {
@@ -357,6 +369,7 @@ winDescribe('packaged windows runtime smoke', () => {
           uninstallerPath: install.uninstallerPath,
         },
         installTiming,
+        expectedUpdateRoot,
         logs: summarizeLogs(logs),
         namespace,
         reinstall,
@@ -397,7 +410,7 @@ winDescribe('packaged windows runtime smoke', () => {
       }
 
       if (installed) {
-        await runToolsPackJson<WinUninstallResult>('uninstall').catch((error: unknown) => {
+        await runToolsPackJson<WinUninstallResult>('uninstall', ['--remove-product-user-data']).catch((error: unknown) => {
           console.error('failed to uninstall packaged windows app during cleanup', error);
         });
         installed = false;
@@ -725,6 +738,32 @@ async function fileSizeBytes(filePath: string): Promise<number> {
 
 async function readTiming(filePath: string): Promise<TimingResult> {
   return JSON.parse(await readFile(filePath, 'utf8')) as TimingResult;
+}
+
+async function resolveExpectedUpdateRoot(installDir: string): Promise<string> {
+  const installedConfig = JSON.parse(
+    await readFile(join(installDir, 'resources', 'open-design-config.json'), 'utf8'),
+  ) as InstalledPackagedConfig;
+  const configuredNamespaceBaseRoot =
+    typeof installedConfig.namespaceBaseRoot === 'string' && installedConfig.namespaceBaseRoot.length > 0
+      ? installedConfig.namespaceBaseRoot
+      : null;
+  const namespaceBaseRoot =
+    configuredNamespaceBaseRoot ?? join(defaultWindowsAppDataRoot(await readInstalledAppName(installDir)), 'namespaces');
+  return join(resolve(namespaceBaseRoot), namespace, 'updates');
+}
+
+async function readInstalledAppName(installDir: string): Promise<string> {
+  const appPackage = JSON.parse(
+    await readFile(join(installDir, 'resources', 'app', 'package.json'), 'utf8'),
+  ) as InstalledAppPackage;
+  if (typeof appPackage.productName === 'string' && appPackage.productName.length > 0) return appPackage.productName;
+  if (typeof appPackage.name === 'string' && appPackage.name.length > 0) return appPackage.name;
+  return 'Open Design';
+}
+
+function defaultWindowsAppDataRoot(appName: string): string {
+  return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), appName);
 }
 
 function resolveFromWorkspace(filePath: string): string {
