@@ -346,51 +346,13 @@ describe('desktop-import-token gate', () => {
     );
     expect(resp.status).toBe(403);
   });
-});
 
-describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
+  // ---- POST /api/projects/:id/working-dir parity ----------------------
   // The "清空并替换目录" endpoint is gated by the same HMAC token model
-  // as /api/import/folder. These tests pin the parity so a future
-  // divergence (one route hardens but the other doesn't) fails fast.
-  let server: http.Server;
-  let baseUrl: string;
-  const tempDirs: string[] = [];
-
-  beforeAll(async () => {
-    const started = (await startServer({ port: 0, returnServer: true })) as {
-      url: string;
-      server: http.Server;
-    };
-    baseUrl = started.url;
-    server = started.server;
-  });
-
-  beforeEach(() => {
-    resetDesktopAuthForTests();
-  });
-
-  afterEach(() => {
-    resetDesktopAuthForTests();
-    for (const dir of tempDirs.splice(0)) {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  afterAll(() => {
-    resetDesktopAuthForTests();
-    return new Promise<void>((resolve) => server.close(() => resolve()));
-  });
-
-  function makeFolder(): string {
-    const d = mkdtempSync(path.join(tmpdir(), 'od-workingdir-token-'));
-    tempDirs.push(d);
-    return d;
-  }
+  // as /api/import/folder. These tests pin parity so a future divergence
+  // (one route hardens but the other doesn't) fails fast.
 
   async function createProject(): Promise<string> {
-    // Create a fresh native project so working-dir has something to
-    // re-point. This goes through the normal HTTP API (no auth required
-    // for /api/projects POST) and returns the daemon-assigned id.
     const resp = await fetch(`${baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -413,7 +375,7 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
     });
   }
 
-  it('accepts unauthenticated working-dir replaces when no secret is registered', async () => {
+  it('working-dir: accepts unauthenticated replaces when no secret is registered', async () => {
     const projectId = await createProject();
     const folder = makeFolder();
     const resp = await replaceWorkingDir(projectId, { baseDir: folder });
@@ -422,12 +384,11 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
       baseDir: string;
       project: { metadata?: { fromTrustedPicker?: boolean } };
     };
-    // No secret registered → no `fromTrustedPicker` marker stamped.
     expect(body.project.metadata?.fromTrustedPicker).toBeUndefined();
     expect(body.baseDir).toBeTruthy();
   });
 
-  it('rejects working-dir replaces with no token when a secret is registered', async () => {
+  it('working-dir: rejects replaces with no token when a secret is registered', async () => {
     const projectId = await createProject();
     const folder = makeFolder();
     setDesktopAuthSecret(randomBytes(32));
@@ -437,7 +398,7 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
     expect(body.error?.code).toBe('FORBIDDEN');
   });
 
-  it('accepts a valid token, marks the project trusted, and rejects nonce replays', async () => {
+  it('working-dir: accepts a valid token, marks the project trusted, and rejects nonce replays', async () => {
     const projectId = await createProject();
     const folder = makeFolder();
     const secret = randomBytes(32);
@@ -456,8 +417,6 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
     expect(okBody.project.metadata?.fromTrustedPicker).toBe(true);
     expect(okBody.project.metadata?.baseDir).toBeTruthy();
 
-    // Replay: same nonce + token → 403 because the daemon already
-    // consumed this nonce on the first call.
     const replayResp = await replaceWorkingDir(
       projectId,
       { baseDir: folder },
@@ -466,7 +425,7 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
     expect(replayResp.status).toBe(403);
   });
 
-  it('stays fail-closed after the registered secret is cleared (sticky gate)', async () => {
+  it('working-dir: stays fail-closed after the registered secret is cleared (sticky gate)', async () => {
     const projectId = await createProject();
     const folder = makeFolder();
     setDesktopAuthSecret(randomBytes(32));
@@ -479,7 +438,7 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
     expect(body.error?.code).toBe('DESKTOP_AUTH_PENDING');
   });
 
-  it('mintImportTokenFromCurrentSecret produces a token the working-dir route accepts', async () => {
+  it('working-dir: mintImportTokenFromCurrentSecret produces a token the route accepts', async () => {
     // Pure-helper integration: the IPC mint path the CLI uses must
     // produce a token the same daemon process can verify, end to end.
     const projectId = await createProject();
@@ -503,7 +462,6 @@ describe('desktop-import-token gate — /api/projects/:id/working-dir', () => {
   });
 
   it('mintImportTokenFromCurrentSecret returns null when the gate is dormant', () => {
-    // Web-only deployments — caller can POST without a token.
     expect(mintImportTokenFromCurrentSecret('/some/path')).toBeNull();
   });
 
