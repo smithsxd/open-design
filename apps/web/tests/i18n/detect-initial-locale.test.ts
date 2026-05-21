@@ -5,6 +5,16 @@ import { installMockOpenDesignHost } from '@open-design/host/testing';
 import { detectInitialLocale } from '../../src/i18n';
 
 const LS_KEY = 'open-design:locale';
+const LS_SOURCE_KEY = 'open-design:locale-source';
+
+function setStoredLocale(locale: string, source: 'manual' | 'untagged' = 'manual'): void {
+  window.localStorage.setItem(LS_KEY, locale);
+  if (source === 'manual') {
+    window.localStorage.setItem(LS_SOURCE_KEY, 'manual');
+  } else {
+    window.localStorage.removeItem(LS_SOURCE_KEY);
+  }
+}
 
 function setNavigatorLanguages(languages: readonly string[]): void {
   Object.defineProperty(window.navigator, 'languages', {
@@ -50,16 +60,23 @@ describe('detectInitialLocale priority chain', () => {
     clearHost();
   });
 
-  it('prefers the user pick saved to localStorage over everything else', () => {
-    window.localStorage.setItem(LS_KEY, 'ja');
+  it('prefers a manually-tagged localStorage pick over host and navigator', () => {
+    setStoredLocale('ja', 'manual');
     installHostWithOsLocale('zh-CN');
     setNavigatorLanguages(['fr-FR']);
 
     expect(detectInitialLocale()).toBe('ja');
   });
 
+  it('ignores an untagged localStorage value when a fresh host locale is available', () => {
+    setStoredLocale('ja', 'untagged');
+    installHostWithOsLocale('zh-CN');
+
+    expect(detectInitialLocale()).toBe('zh-CN');
+  });
+
   it('falls through to navigator when an unsupported locale was stored', () => {
-    window.localStorage.setItem(LS_KEY, 'xx-YY');
+    setStoredLocale('xx-YY', 'manual');
     setNavigatorLanguages(['de-DE']);
 
     expect(detectInitialLocale()).toBe('de');

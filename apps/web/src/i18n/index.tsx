@@ -59,6 +59,13 @@ const DICTS: Record<Locale, Dict> = {
 };
 
 const LS_KEY = 'open-design:locale';
+// Marker that says "the value in LS_KEY came from a deliberate user
+// action through setLocale, not from some auto-detection path". Only
+// values tagged this way win over the desktop host's injected OS
+// locale, so a stale auto-detected pick can't pin the app forever once
+// the user changes their system language.
+const LS_SOURCE_KEY = 'open-design:locale-source';
+const MANUAL_LOCALE_SOURCE = 'manual';
 
 export function resolveSystemLocale(languages: readonly string[]): Locale | null {
   const supported = LOCALES as readonly string[];
@@ -97,19 +104,29 @@ function readDesktopHostOsLocale(): string | undefined {
 }
 
 // First-run defaults to the user's OS / browser language when possible.
-// Priority: explicit user pick saved to localStorage > OS locale that the
-// desktop host injected (packaged Electron) > navigator.languages > 'en'.
+// Priority: explicit user pick saved to localStorage (only when tagged
+// as manual) > OS locale that the desktop host injected (packaged
+// Electron) > navigator.languages > 'en'. The source tag matters
+// because untagged localStorage values are treated as legacy /
+// auto-detected — they don't override a fresh OS locale read.
 // Exported so tests can pin the priority chain without spinning up the
 // full I18nProvider.
 export function detectInitialLocale(): Locale {
   if (typeof window === 'undefined') return 'en';
+  let storedLocale: string | null = null;
+  let storedSource: string | null = null;
   try {
-    const stored = window.localStorage.getItem(LS_KEY);
-    if (stored && (LOCALES as string[]).includes(stored)) {
-      return stored as Locale;
-    }
+    storedLocale = window.localStorage.getItem(LS_KEY);
+    storedSource = window.localStorage.getItem(LS_SOURCE_KEY);
   } catch {
     /* ignore */
+  }
+  if (
+    storedSource === MANUAL_LOCALE_SOURCE &&
+    storedLocale &&
+    (LOCALES as string[]).includes(storedLocale)
+  ) {
+    return storedLocale as Locale;
   }
   const hostOsLocale = readDesktopHostOsLocale();
   if (hostOsLocale) {
@@ -155,6 +172,9 @@ export function I18nProvider({ initial, children }: ProviderProps) {
     setLocaleState(next);
     try {
       window.localStorage.setItem(LS_KEY, next);
+      // Marker so detectInitialLocale knows this came from a deliberate
+      // user action and should beat the desktop host's OS locale.
+      window.localStorage.setItem(LS_SOURCE_KEY, MANUAL_LOCALE_SOURCE);
     } catch {
       /* ignore */
     }

@@ -26,7 +26,12 @@ function readOsLocaleFromArgv(): string | undefined {
   for (const arg of process.argv) {
     if (typeof arg === 'string' && arg.startsWith(OS_LOCALE_ARG_PREFIX)) {
       const value = arg.slice(OS_LOCALE_ARG_PREFIX.length);
-      if (value.length > 0) return value;
+      if (value.length === 0) return undefined;
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
     }
   }
   return undefined;
