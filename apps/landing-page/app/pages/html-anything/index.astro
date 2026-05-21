@@ -156,11 +156,21 @@ const jsonLd: Array<Record<string, unknown>> = [
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'macOS, Linux, Windows',
     description,
-    url: HA_URL,
-    sameAs: [
-      'https://open-design.ai/html-anything/',
-      HA_URL,
-    ],
+    /*
+     * `url` is the canonical surface for the entity. JSON-LD lives on the
+     * landing page, so the landing page IS the canonical URL — Google
+     * uses this field to decide which page to attribute the
+     * SoftwareApplication entity to. Pointing it at the GitHub repo
+     * would tell crawlers "the canonical home of HTML Anything is
+     * github.com/...", which is exactly the opposite of what this SEO
+     * pass is trying to achieve. The BreadcrumbList block below also
+     * uses the landing page URL — keep both blocks aligned.
+     *
+     * `sameAs` carries the OTHER reference surfaces that identify the
+     * same entity. The GitHub repo belongs there.
+     */
+    url: 'https://open-design.ai/html-anything/',
+    sameAs: [HA_URL],
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     author: {
