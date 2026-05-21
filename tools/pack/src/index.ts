@@ -11,6 +11,7 @@ import {
   restartPackagedWebBundle,
   switchPackagedWebBundle,
   switchPackagedWebBundlePublication,
+  switchPackagedWebBundlePublicationUrl,
 } from "./bundles.js";
 import {
   cleanupPackedMacNamespace,
@@ -57,6 +58,7 @@ type BundleCliOptions = CliOptions & {
   online?: boolean;
   platform?: string;
   publication?: string;
+  publicationUrl?: string;
   registryBasePath?: string;
   version?: string;
 };
@@ -279,6 +281,7 @@ cli.command("bundle <action>", "Packaged web bundle commands: activate|builtin|s
   .option("--builtin", "target the built-in packaged web runtime")
   .option("--online", "send activation/builtin through the running packaged IPC instead of writing the offline pointer")
   .option("--publication <pathKey/channel/version>", "switch to a publication record, e.g. od-sidecar-web/beta/latest")
+  .option("--publication-url <url>", "switch to a remote publication.json URL and download its selected artifact")
   .option("--registry-base-path <path>", "bundle publication registry base path")
   .option("--bundle-version <version>", "web bundle version <epoch>.web.M")
   .action(async (action: string, options: BundleCliOptions) => {
@@ -317,6 +320,15 @@ cli.command("bundle <action>", "Packaged web bundle commands: activate|builtin|s
             printJson(await switchPackagedWebBundle(config, "builtin"));
             return;
           }
+          if (options.publicationUrl != null && options.publicationUrl.length > 0) {
+            if (options.publication != null && options.publication.length > 0) {
+              throw new Error("tools-pack bundle switch accepts only one of --publication-url or --publication");
+            }
+            printJson(await switchPackagedWebBundlePublicationUrl(config, {
+              publicationUrl: options.publicationUrl,
+            }));
+            return;
+          }
           if (options.publication != null && options.publication.length > 0) {
             printJson(await switchPackagedWebBundlePublication(config, {
               publication: options.publication,
@@ -325,7 +337,7 @@ cli.command("bundle <action>", "Packaged web bundle commands: activate|builtin|s
             return;
           }
           if (bundleVersion == null || bundleVersion.length === 0) {
-            throw new Error("tools-pack bundle switch requires --bundle-version <epoch>.web.M, --publication <pathKey/channel/version>, or --builtin");
+            throw new Error("tools-pack bundle switch requires --bundle-version <epoch>.web.M, --publication-url <url>, --publication <pathKey/channel/version>, or --builtin");
           }
           printJson(await switchPackagedWebBundle(config, { version: bundleVersion }));
           return;

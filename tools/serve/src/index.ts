@@ -1,5 +1,6 @@
 import { cac } from "cac";
 
+import { startBundleFixtureServer } from "./bundle-fixture.js";
 import { startUpdaterFixtureServer } from "./updater-fixture.js";
 
 type CliOptions = {
@@ -7,6 +8,7 @@ type CliOptions = {
   host?: string;
   json?: boolean;
   port?: string;
+  registryBasePath?: string;
   version?: string;
 };
 
@@ -23,20 +25,43 @@ function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
+function requireOption(value: string | undefined, name: string): string {
+  if (value == null || value.length === 0) throw new Error(`${name} is required`);
+  return value;
+}
+
 async function start(service: string, options: CliOptions): Promise<void> {
-  if (service !== "updater") throw new Error(`unsupported tools-serve service: ${service}`);
-  const server = await startUpdaterFixtureServer({
-    channel: options.channel,
+  if (service === "updater") {
+    const server = await startUpdaterFixtureServer({
+      channel: options.channel,
+      host: options.host,
+      port: parsePort(options.port),
+      version: options.version,
+    });
+    if (options.json === true) {
+      printJson(server.info);
+    } else {
+      process.stdout.write(`tools-serve updater: ${server.info.metadataUrl}\n`);
+    }
+    const shutdown = () => {
+      void server.close().finally(() => process.exit(0));
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    return;
+  }
+
+  if (service !== "bundle") throw new Error(`unsupported tools-serve service: ${service}`);
+  const server = await startBundleFixtureServer({
     host: options.host,
     port: parsePort(options.port),
-    version: options.version,
+    registryBasePath: requireOption(options.registryBasePath, "--registry-base-path"),
   });
   if (options.json === true) {
     printJson(server.info);
   } else {
-    process.stdout.write(`tools-serve updater: ${server.info.metadataUrl}\n`);
+    process.stdout.write(`tools-serve bundle: ${server.info.rootUrl}\n`);
   }
-
   const shutdown = () => {
     void server.close().finally(() => process.exit(0));
   };
@@ -61,6 +86,7 @@ cli
   .option("--host <host>", "Host to bind", { default: "127.0.0.1" })
   .option("--json", "Print JSON")
   .option("--port <port>", "Port to bind, 0 for dynamic", { default: "0" })
+  .option("--registry-base-path <path>", "Bundle registry root for tools-serve start bundle")
   .option("--version <version>", "Fixture update version", { default: "99.0.0" })
   .action((service: string, options: CliOptions) => {
     void start(service, options);

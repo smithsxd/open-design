@@ -22,6 +22,7 @@ export const BUNDLE_DESCRIPTOR_SCHEMA_VERSION = 1;
 export const BUNDLE_DESCRIPTOR_SCHEMA_VERSION_V2 = 2;
 export const BUNDLE_METADATA_FILE = "metadata.json";
 export const BUNDLE_OBJECTS_DIR = "objects";
+export const BUNDLE_PUBLICATION_ARTIFACT_FILE = "bundle.tar";
 export const BUNDLE_PUBLICATION_DIGEST_FILE = "publication.json.sha256";
 export const BUNDLE_PUBLICATION_FILE = "publication.json";
 export const BUNDLE_PUBLICATION_LATEST_TAG = "latest";
@@ -107,7 +108,17 @@ export type BundlePublicationDisplay = {
   version: string;
 };
 
+export type BundlePublicationArtifact = {
+  contentType?: string;
+  format: "tar";
+  sha256?: string;
+  sha256Url?: string;
+  size?: number;
+  url: string;
+};
+
 export type BundlePublicationVariant = {
+  artifact: BundlePublicationArtifact;
   compatible: {
     hostEpoch: string;
   };
@@ -221,7 +232,17 @@ const bundlePublicationDisplayInputSchema = z.object({
   title: bundlePublicationLocalizedTextInputSchema.optional(),
   version: nullSafeStringSchema.min(1).optional(),
 }).strict();
+const bundleSha256Schema = z.string().regex(/^[a-f0-9]{64}$/i);
+const bundlePublicationArtifactInputSchema = z.object({
+  contentType: nullSafeStringSchema.min(1).optional(),
+  format: z.literal("tar"),
+  sha256: bundleSha256Schema.optional(),
+  sha256Url: nullSafeStringSchema.min(1).optional(),
+  size: z.number().int().nonnegative().optional(),
+  url: nullSafeStringSchema.min(1),
+}).strict();
 const bundlePublicationVariantInputSchema = z.object({
+  artifact: bundlePublicationArtifactInputSchema,
   compatible: z.object({
     hostEpoch: z.string(),
   }).strict(),
@@ -455,6 +476,23 @@ function validateBundlePublicationDisplay(value: unknown, metadataVersion: strin
   };
 }
 
+function validateBundlePublicationArtifact(value: unknown): BundlePublicationArtifact {
+  const parsed = parseSchema(
+    bundlePublicationArtifactInputSchema,
+    value,
+    "bundle-publication-invalid",
+    "bundle publication variant.artifact",
+  );
+  return {
+    ...(parsed.contentType == null ? {} : { contentType: parsed.contentType }),
+    format: parsed.format,
+    ...(parsed.sha256 == null ? {} : { sha256: parsed.sha256.toLowerCase() }),
+    ...(parsed.sha256Url == null ? {} : { sha256Url: parsed.sha256Url }),
+    ...(parsed.size == null ? {} : { size: parsed.size }),
+    url: parsed.url,
+  };
+}
+
 function validateBundlePublicationMetadata(value: unknown): BundlePublication["metadata"] {
   const parsed = parseSchema(
     bundlePublicationInputSchema.shape.metadata,
@@ -488,6 +526,7 @@ function validateBundlePublicationVariant(value: unknown): BundlePublicationVari
   }
 
   return {
+    artifact: validateBundlePublicationArtifact(parsed.artifact),
     compatible: { hostEpoch },
     platform: validateBundlePublicationPlatform(parsed.platform),
     version: parsedVersion.version,

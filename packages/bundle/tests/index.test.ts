@@ -46,6 +46,17 @@ async function sourceTree(label: string, files: Record<string, string>): Promise
   return root;
 }
 
+function fixtureArtifact(name = "bundle.tar") {
+  return {
+    artifact: {
+      format: "tar",
+      sha256: "a".repeat(64),
+      size: 12,
+      url: name,
+    },
+  } as const;
+}
+
 beforeEach(() => {
   roots = [];
 });
@@ -200,11 +211,13 @@ describe("bundle publications", () => {
         pathKey: "od-sidecar-web",
         variants: [
           {
+            ...fixtureArtifact("any.tar"),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "any",
             version: "0.8.0-beta.4.web.1",
           },
           {
+            ...fixtureArtifact("darwin-arm64.tar"),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "darwin-arm64",
             version: "0.8.0-beta.4.web.2",
@@ -258,6 +271,7 @@ describe("bundle publications", () => {
         pathKey: "od-sidecar-web",
         variants: [
           {
+            ...fixtureArtifact(),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "any",
             version: "0.8.0-beta.4.web.1",
@@ -305,6 +319,7 @@ describe("bundle publications", () => {
         pathKey: "od-sidecar-web",
         variants: [
           {
+            ...fixtureArtifact(),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "any",
             version: "0.8.0-beta.5.web.1",
@@ -320,11 +335,13 @@ describe("bundle publications", () => {
         pathKey: "od-sidecar-web",
         variants: [
           {
+            ...fixtureArtifact("one.tar"),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "any",
             version: "0.8.0-beta.4.web.1",
           },
           {
+            ...fixtureArtifact("two.tar"),
             compatible: { hostEpoch: "0.8.0-beta.4" },
             platform: "any",
             version: "0.8.0-beta.4.web.2",
@@ -344,6 +361,7 @@ describe("bundle publications", () => {
           pathKey: "od-sidecar-web",
           variants: [
             {
+              ...fixtureArtifact(),
               compatible: { hostEpoch: "0.8.0-beta.4" },
               platform: "any",
               version: "0.8.0-beta.4.web.1",

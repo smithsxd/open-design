@@ -333,11 +333,20 @@ describe("tools-bundle", () => {
       assert.equal(result.publication.bundle.pathKey, "od-sidecar-web");
       assert.deepEqual(result.publication.bundle.variants, [
         {
+          artifact: {
+            contentType: "application/x-tar",
+            format: "tar",
+            sha256: result.publication.bundle.variants[0]?.artifact.sha256,
+            size: result.publication.bundle.variants[0]?.artifact.size,
+            url: "bundle.tar",
+          },
           compatible: { hostEpoch: "0.8.0-beta.4" },
           platform: "any",
           version: "0.8.0-beta.4.web.1",
         },
       ]);
+      assert.match(result.publication.bundle.variants[0]?.artifact.sha256 ?? "", /^[a-f0-9]{64}$/);
+      assert.equal(typeof result.publication.bundle.variants[0]?.artifact.size, "number");
       assert.equal(
         result.versioned.paths.publicationPath,
         path.join(registryBasePath, "od-sidecar-web", "beta", "0.8.0-beta.4", "publication.json"),
@@ -348,6 +357,8 @@ describe("tools-bundle", () => {
       );
       assert.equal(JSON.parse(await readFile(result.versioned.paths.publicationPath, "utf8")).metadata.display.title.default, "Web Bundle");
       assert.match(await readFile(result.versioned.paths.digestPath, "utf8"), /^[a-f0-9]{64}  publication\.json\n$/);
+      assert.equal(await exists(path.join(registryBasePath, "od-sidecar-web", "beta", "0.8.0-beta.4", "bundle.tar")), true);
+      assert.equal(await exists(path.join(registryBasePath, "od-sidecar-web", "beta", "latest", "bundle.tar")), true);
     });
   });
 

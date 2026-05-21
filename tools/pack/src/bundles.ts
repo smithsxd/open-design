@@ -20,6 +20,11 @@ import {
 } from "@open-design/sidecar-proto";
 import { requestJsonIpc, resolveAppIpcPath } from "@open-design/sidecar";
 
+import {
+  fetchRemoteBundlePublication,
+  installRemoteBundleArtifact,
+  type InstalledRemoteBundleArtifact,
+} from "./bundle-remote.js";
 import type { ToolPackConfig } from "./config.js";
 
 export const TOOLS_PACK_WEB_BUNDLE_KEY = "od:sidecar:web";
@@ -64,6 +69,13 @@ export type PackagedWebBundlePublicationSwitchResult = {
     path: string;
     pathKey: string;
     version: string;
+  };
+  install?: {
+    artifactUrl: string;
+    bundleBasePath: string;
+    digest: InstalledRemoteBundleArtifact["digest"];
+    path: string;
+    size: number;
   };
   selected: BundlePublicationVariant;
   switch: PackagedBundleOperationResult;
@@ -435,6 +447,62 @@ export async function switchPackagedWebBundlePublication(
       path: resolved.paths.publicationPath,
       pathKey: resolved.publication.bundle.pathKey,
       version: resolved.publication.metadata.version,
+    },
+    selected,
+    switch: switched,
+  };
+}
+
+export async function switchPackagedWebBundlePublicationUrl(
+  config: ToolPackConfig,
+  input: {
+    publicationUrl: string;
+  },
+): Promise<PackagedWebBundlePublicationSwitchResult> {
+  const remote = await fetchRemoteBundlePublication(input.publicationUrl);
+  const status = await readPackagedWebBundleStatus(config);
+  const hostEpoch = readOnlineHostEpoch(status);
+  const platform = packagePlatformTag(config);
+  const selected = selectBundlePublicationVariant({
+    hostEpoch,
+    key: TOOLS_PACK_WEB_BUNDLE_KEY,
+    platform,
+    publication: remote.publication,
+  });
+  const install = await installRemoteBundleArtifact(config, {
+    key: TOOLS_PACK_WEB_BUNDLE_KEY,
+    publicationUrl: remote.urls.publicationUrl,
+    variant: selected,
+  });
+  const presentation = presentationFromPublication({
+    channel: remote.publication.metadata.channel,
+    display: remote.publication.metadata.display,
+    version: remote.publication.metadata.version,
+  });
+  const switched = await switchPackagedWebBundle(config, {
+    presentation,
+    version: selected.version,
+  });
+
+  return {
+    digest: remote.digest,
+    hostEpoch,
+    install: {
+      artifactUrl: install.artifactUrl,
+      bundleBasePath: install.bundleBasePath,
+      digest: install.digest,
+      path: install.resolved.path,
+      size: install.size,
+    },
+    mode: "publication",
+    platform,
+    publication: {
+      channel: remote.publication.metadata.channel,
+      display: remote.publication.metadata.display,
+      key: remote.publication.bundle.key,
+      path: remote.urls.publicationUrl,
+      pathKey: remote.publication.bundle.pathKey,
+      version: remote.publication.metadata.version,
     },
     selected,
     switch: switched,

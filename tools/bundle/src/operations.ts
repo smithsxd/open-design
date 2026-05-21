@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
   BUNDLE_DESCRIPTOR_FILE,
   BUNDLE_DESCRIPTOR_SCHEMA_VERSION_V2,
+  BUNDLE_PUBLICATION_ARTIFACT_FILE,
   BUNDLE_PUBLICATION_SCHEMA_VERSION,
   addBundle,
   createBundleEpochVersion,
@@ -25,6 +26,7 @@ import {
   type BundleResolved,
 } from "@open-design/bundle";
 
+import { createBundleTarArchive } from "./archive.js";
 import {
   DAEMON_APP,
   WEB_APP,
@@ -97,6 +99,10 @@ export type PublishBundleResult = {
   tagged?: BundlePublicationResolved;
   versioned: BundlePublicationResolved;
 };
+
+async function copyPublicationArtifact(archivePath: string, resolved: BundlePublicationResolved): Promise<void> {
+  await cp(archivePath, path.join(resolved.paths.directory, BUNDLE_PUBLICATION_ARTIFACT_FILE));
+}
 
 function normalizeRef(input: { key?: string; refOrVersion: string }): BundleRef {
   const at = input.refOrVersion.lastIndexOf("@");
@@ -276,49 +282,69 @@ export async function publishBundle(input: PublishBundleInput): Promise<PublishB
   await validateBundlePath(raw.path);
   const parsedVersion = parseBundleEpochVersion(bundleVersion);
   const displayVersion = input.displayVersion ?? input.version;
-  const publication: BundlePublication = {
-    bundle: {
-      key,
-      pathKey: input.pathKey,
-      variants: [
-        {
-          compatible: { hostEpoch: parsedVersion.epoch },
-          platform: input.platform ?? "any",
-          version: bundleVersion,
-        },
-      ],
-    },
-    metadata: {
-      channel: input.channel,
-      display: {
-        summary: { default: input.summary ?? "" },
-        title: { default: input.title ?? "" },
-        version: displayVersion,
-      },
-      publish: {},
-      version: input.version,
-    },
-    schemaVersion: BUNDLE_PUBLICATION_SCHEMA_VERSION,
-  };
+  const tempRoot = await mkdtemp(path.join(tmpdir(), "od-tools-bundle-artifact-"));
 
-  const versioned = await writeBundlePublication({
-    basePath: path.resolve(input.registryBasePath),
-    publication,
-  });
-  const tagged = input.tag == null
-    ? undefined
-    : await writeBundlePublication({
-      basePath: path.resolve(input.registryBasePath),
-      publication,
-      versionOrTag: input.tag,
+  try {
+    const archive = await createBundleTarArchive({
+      archivePath: path.join(tempRoot, BUNDLE_PUBLICATION_ARTIFACT_FILE),
+      bundlePath: raw.path,
     });
+    const publication: BundlePublication = {
+      bundle: {
+        key,
+        pathKey: input.pathKey,
+        variants: [
+          {
+            artifact: {
+              contentType: archive.contentType,
+              format: archive.format,
+              sha256: archive.sha256,
+              size: archive.size,
+              url: BUNDLE_PUBLICATION_ARTIFACT_FILE,
+            },
+            compatible: { hostEpoch: parsedVersion.epoch },
+            platform: input.platform ?? "any",
+            version: bundleVersion,
+          },
+        ],
+      },
+      metadata: {
+        channel: input.channel,
+        display: {
+          summary: { default: input.summary ?? "" },
+          title: { default: input.title ?? "" },
+          version: displayVersion,
+        },
+        publish: {},
+        version: input.version,
+      },
+      schemaVersion: BUNDLE_PUBLICATION_SCHEMA_VERSION,
+    };
 
-  return {
-    publication: versioned.publication,
-    raw,
-    ...(tagged == null ? {} : { tagged }),
-    versioned,
-  };
+    const registryBasePath = path.resolve(input.registryBasePath);
+    const versioned = await writeBundlePublication({
+      basePath: registryBasePath,
+      publication,
+    });
+    await copyPublicationArtifact(archive.path, versioned);
+    const tagged = input.tag == null
+      ? undefined
+      : await writeBundlePublication({
+        basePath: registryBasePath,
+        publication,
+        versionOrTag: input.tag,
+      });
+    if (tagged != null) await copyPublicationArtifact(archive.path, tagged);
+
+    return {
+      publication: versioned.publication,
+      raw,
+      ...(tagged == null ? {} : { tagged }),
+      versioned,
+    };
+  } finally {
+    await rm(tempRoot, { force: true, recursive: true });
+  }
 }
 
 export async function listBundleStore(basePath: string): Promise<BundleEntry[]> {

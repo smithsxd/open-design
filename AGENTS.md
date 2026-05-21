@@ -24,7 +24,7 @@ This file is the single source of truth for agents entering this repository. Rea
 - `tools/dev` is the local development lifecycle control plane.
 - `tools/pack` is the local packaged build/start/stop/logs control plane and mac beta release artifact preparation surface.
 - `tools/pr` is the maintainer PR-duty control plane: a thin `gh` wrapper that encodes this repo's review-lane derivation, forbidden-surface flags, lane checklists, and validation-command suggestions.
-- `tools/serve` is the local fixture-service control plane; first service is `tools-serve start updater` for deterministic updater metadata and artifacts.
+- `tools/serve` is the local fixture-service control plane; services include `tools-serve start updater` for deterministic updater metadata/artifacts and `tools-serve start bundle` for deterministic bundle registry/artifact fixtures.
 - `e2e` owns user-level end-to-end smoke tests and Playwright UI automation; read `e2e/AGENTS.md` before editing its tests or commands.
 
 ## Inactive or placeholder directories
@@ -190,6 +190,7 @@ pnpm install
 pnpm tools-bundle validate <bundle-path>
 pnpm tools-dev
 pnpm tools-serve start updater
+pnpm tools-serve start bundle --registry-base-path .tmp/bundle-registry
 pnpm tools-dev start web
 pnpm tools-dev run web --daemon-port 17456 --web-port 17573
 pnpm tools-dev status --json
