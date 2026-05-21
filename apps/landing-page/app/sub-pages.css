@@ -306,7 +306,12 @@ body.sub-page {
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.5;
-  margin: 0 0 12px;
+  /* Only set bottom margin here. Horizontal margin is owned by the
+   * `.featured-card a > * + *` rule above (24px both sides); using
+   * the `margin: ...` shorthand instead would clobber that to 0 and
+   * the description text would bleed against the card edge. Same
+   * fragility template-summary fixed in #2600. */
+  margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
