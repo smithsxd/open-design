@@ -1,5 +1,6 @@
 {
   # Vendored pnpm store hashes for the workspace packages built by the flake.
+  # Generated lock artifact; do not hand-edit outside intentional Nix maintenance.
   #
   # The daemon and web derivations now build from different filtered source
   # trees, so each fetchPnpmDeps invocation needs its own fixed-output hash.
