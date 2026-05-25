@@ -97,11 +97,11 @@ export function AvatarMenu({
         aria-label={t('avatar.title')}
       >
         {currentAgent ? (
-          <AgentIcon id={currentAgent.id} size={18} />
+          <AgentIcon id={currentAgent.id} size={20} />
         ) : (
-          <RemixIcon name="link" size={18} />
+          <RemixIcon name="link" size={20} />
         )}
-        <RemixIcon name="arrow-down-s-line" size={13} />
+        <RemixIcon name="arrow-down-s-line" size={14} />
       </button>
       {open ? (
         <div className="avatar-popover" role="dialog" aria-label={t('avatar.title')}>
