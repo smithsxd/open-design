@@ -376,6 +376,7 @@ export interface Dict {
   'settings.designSystems': string;
   'settings.designSystemsHint': string;
   'settings.designSystemsInstalled': string;
+  'settings.designSystemRenameFailed': string;
   'settings.designSystemsAdd': string;
   'settings.designSystemsHiddenCount': string;
   'settings.designSystemsShowAll': string;
@@ -671,6 +672,9 @@ export interface Dict {
 
   // Desktop updater
   'updater.available': string;
+  'updater.availableBody': string;
+  'updater.checking': string;
+  'updater.download': string;
   'updater.downloading': string;
   'updater.downloadingPercent': string;
   'updater.done': string;
@@ -688,6 +692,7 @@ export interface Dict {
   'updater.ready': string;
   'updater.readyGeneric': string;
   'updater.readyVersion': string;
+  'updater.upToDate': string;
 
   // Entry view / tabs
   'entry.tabDesigns': string;
@@ -786,6 +791,12 @@ export interface Dict {
   'workingDirPicker.showInFileManager': string;
   'workingDirPicker.replace': string;
   'workingDirPicker.recent': string;
+  'handoff.toTarget': string;
+  'handoff.action': string;
+  'handoff.fallbackTitle': string;
+  'handoff.chooseTargetAria': string;
+  'handoff.notInstalled': string;
+  'handoff.notDetectedTitle': string;
   'designSystemPicker.select': string;
   'designSystemPicker.loading': string;
   'designSystemPicker.searchPlaceholder': string;
@@ -888,6 +899,21 @@ export interface Dict {
   'pluginsView.removing': string;
   'pluginsView.teamTitle': string;
   'pluginsView.teamBody': string;
+  'pluginCard.details': string;
+  'pluginCard.use': string;
+  'pluginCard.useWithQuery': string;
+  'pluginCard.applying': string;
+  'pluginCard.publish': string;
+  'pluginCard.contribute': string;
+  'pluginCard.starting': string;
+  'pluginCard.detailsAria': string;
+  'pluginCard.chooseUseAria': string;
+  'pluginCard.useOptionsAria': string;
+  'pluginCard.shareAria': string;
+  'pluginCard.publishAria': string;
+  'pluginCard.publishTitle': string;
+  'pluginCard.contributeAria': string;
+  'pluginCard.contributeTitle': string;
   'integrations.kicker': string;
   'integrations.lede': string;
   'integrations.agentReady': string;
@@ -1460,6 +1486,7 @@ export interface Dict {
   'designs.status.succeeded': string;
   'designs.status.failed': string;
   'designs.status.canceled': string;
+  'designs.status.published': string;
   'designs.viewToggleAria': string;
   'designs.viewGrid': string;
   'designs.viewKanban': string;
@@ -1638,11 +1665,11 @@ export interface Dict {
   'chat.conversationsAria': string;
   'chat.newConversation': string;
   'chat.newConversationsTitle': string;
-  'chat.resumeConversation': string;
   'chat.conversationsHeading': string;
   'chat.new': string;
   'chat.emptyConversations': string;
   'chat.deleteConversation': string;
+  'chat.renameConversationLabel': string;
   'chat.deleteConversationConfirm': string;
   'chat.untitledConversation': string;
   'chat.startTitle': string;
@@ -1783,6 +1810,8 @@ export interface Dict {
   'designFiles.kindSpreadsheet': string;
   'designFiles.kindLiveArtifact': string;
   'designFiles.kindBinary': string;
+  'designFiles.kindFolder': string;
+  'designFiles.folderCount': string;
   'designFiles.colName': string;
   'designFiles.colKind': string;
   'designFiles.colModified': string;
@@ -1809,6 +1838,7 @@ export interface Dict {
   'sketch.save': string;
   'sketch.cancel': string;
   'sketch.saving': string;
+  'sketch.saved': string;
   'sketch.tooltipDirty': string;
   'sketch.tooltipClean': string;
   'fileViewer.empty': string;
@@ -1846,14 +1876,19 @@ export interface Dict {
   'fileViewer.source': string;
   'fileViewer.tweaks': string;
   'fileViewer.tweaksUnavailable': string;
+  'fileViewer.jsxModuleTitle': string;
+  'fileViewer.jsxModuleBody': string;
+  'fileViewer.jsxModuleCta': string;
   'fileViewer.comment': string;
   'fileViewer.edit': string;
   'fileViewer.draw': string;
   'manualEdit.layers': string;
   'manualEdit.editableCount': string;
+  'manualEdit.hiddenBadge': string;
   'manualEdit.title': string;
   'manualEdit.selectLayer': string;
   'manualEdit.empty': string;
+  'manualEdit.noEditableLayers': string;
   'manualEdit.noClass': string;
   'manualEdit.tabsAria': string;
   'manualEdit.tabContent': string;
