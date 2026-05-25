@@ -12,6 +12,7 @@
 
 import type { DesignMdState } from '../hooks/useDesignMdState';
 import type { FinalizeStatus } from '../hooks/useFinalizeProject';
+import { Button } from '@open-design/components';
 
 export interface FinalizeDesignButtonProps {
   designMdState: Pick<DesignMdState, 'exists' | 'isStale'>;
@@ -31,14 +32,13 @@ export function FinalizeDesignButton({
       <div className="project-actions-button project-actions-button-pending" role="group">
         <span className="project-actions-spinner" aria-hidden="true" />
         <span className="project-actions-label">Finalizing…</span>
-        <button
-          type="button"
+        <Button
           className="project-actions-link"
           onClick={onCancel}
           aria-label="Cancel finalize"
         >
           Cancel
-        </button>
+        </Button>
       </div>
     );
   }
@@ -57,12 +57,11 @@ export function FinalizeDesignButton({
   }
 
   return (
-    <button
-      type="button"
+    <Button
       className={`project-actions-button ${variantClass}`}
       onClick={onFinalize}
     >
       {label}
-    </button>
+    </Button>
   );
 }
