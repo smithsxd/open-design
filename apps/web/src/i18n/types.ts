@@ -1486,6 +1486,7 @@ export interface Dict {
   'designs.status.succeeded': string;
   'designs.status.failed': string;
   'designs.status.canceled': string;
+  'designs.status.published': string;
   'designs.viewToggleAria': string;
   'designs.viewGrid': string;
   'designs.viewKanban': string;

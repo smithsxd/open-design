@@ -596,6 +596,7 @@ export const pl: Dict = {
   'designs.status.running': 'Uruchomiony',
   'designs.status.awaitingInput': 'Wymaga danych',
   'designs.status.succeeded': 'Zakończono',
+  'designs.status.published': 'Opublikowano',
   'designs.status.failed': 'Błąd',
   'designs.status.canceled': 'Anulowano',
   'designs.viewToggleAria': 'Tryb widoku',
