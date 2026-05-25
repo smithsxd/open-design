@@ -33,6 +33,8 @@ export interface AnnotationEventDetail {
 interface Props {
   children: ReactNode;
   active?: boolean;
+  initialMode?: PreviewDrawMode;
+  captureViewport?: boolean;
   onActiveChange?: (active: boolean) => void;
   onModeChange?: (mode: PreviewDrawMode) => void;
   captureTarget?: CaptureTarget | null;
@@ -49,6 +51,8 @@ const TARGET_COLOR = '#1677ff';
 export function PreviewDrawOverlay({
   children,
   active = false,
+  initialMode = 'draw',
+  captureViewport = false,
   onActiveChange,
   onModeChange,
   captureTarget = null,
@@ -67,9 +71,9 @@ export function PreviewDrawOverlay({
   const sending = pendingAction !== null;
 
   useEffect(() => {
-    if (active) setMode('draw');
+    if (active) setMode(initialMode);
     else setMode('click');
-  }, [active]);
+  }, [active, initialMode]);
 
   useEffect(() => {
     onModeChange?.(mode);
@@ -321,7 +325,7 @@ export function PreviewDrawOverlay({
 
   async function send(action: 'queue' | 'send') {
     const hasTarget = Boolean(captureTarget);
-    const shouldCapture = hasInk || hasTarget;
+    const shouldCapture = hasInk || hasTarget || captureViewport;
     const canSubmit = shouldCapture || Boolean(note.trim());
     if (sending || !canSubmit) return;
     setPendingAction(action);
@@ -373,7 +377,7 @@ export function PreviewDrawOverlay({
 
   const overlayPointer = mode === 'draw' ? 'auto' : 'none';
   const showCanvas = active || mode === 'draw' || hasInk;
-  const canSubmit = hasInk || Boolean(captureTarget) || Boolean(note.trim());
+  const canSubmit = hasInk || Boolean(captureTarget) || captureViewport || Boolean(note.trim());
   const canSend = canSubmit;
 
   return (

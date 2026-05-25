@@ -1438,6 +1438,8 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.queryByRole('menuitem', { name: 'Region' })).toBeNull();
     expect(screen.getByTestId('draw-overlay-toggle')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Draw' })).toBeTruthy();
+    expect(screen.getByTestId('screenshot-capture-toggle')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Screenshot' })).toBeTruthy();
     expect(screen.queryByPlaceholderText('Type anywhere to add a note')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Pods' })).toBeNull();
 
@@ -1447,6 +1449,12 @@ describe('FileViewer tweaks toolbar', () => {
 
     clickAgentTool('draw-overlay-toggle');
     expect(screen.queryByPlaceholderText('Type anywhere to add a note')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('screenshot-capture-toggle'));
+    expect(screen.getByPlaceholderText('Type anywhere to add a note')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Click' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('screenshot-capture-toggle').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('draw-overlay-toggle').getAttribute('aria-pressed')).toBe('false');
   });
 
   it('keeps the Draw bar open after queueing an annotation', () => {
@@ -1777,7 +1785,7 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows element parameters on annotation hover without opening an editor', async () => {
+  it('shows element parameters on annotation hover and opens comments on click', async () => {
     render(
       <FileViewer
         projectId="project-1"
@@ -1822,9 +1830,13 @@ describe('FileViewer tweaks toolbar', () => {
       data: { ...target, type: 'od:comment-target' },
     }));
 
-    expect(screen.queryByTestId('comment-popover-input')).toBeNull();
+    expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
+    expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByTestId('inspect-panel')).toBeNull();
-    expect(screen.getByTestId('annotation-hover-popover')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
+    });
   });
 
   it('closes an open saved-comment composer when that comment leaves the open state', async () => {

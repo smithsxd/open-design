@@ -616,8 +616,6 @@ interface Props {
   // atomic tab-state update. The React module pointer uses this to jump to the
   // HTML entry that renders a module and drop the dead-end module tab.
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
-  manualEditPortalId?: string;
-  onManualEditModeChange?: (active: boolean) => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }
@@ -637,8 +635,6 @@ export function FileViewer({
   onSendBoardCommentAttachments,
   onFileSaved,
   onOpenFileReplacing,
-  manualEditPortalId,
-  onManualEditModeChange,
   commentPortalId,
   onCommentModeChange,
 }: Props) {
@@ -678,8 +674,6 @@ export function FileViewer({
         onRemovePreviewComment={onRemovePreviewComment}
         onSendBoardCommentAttachments={onSendBoardCommentAttachments}
         onFileSaved={onFileSaved}
-        manualEditPortalId={manualEditPortalId}
-        onManualEditModeChange={onManualEditModeChange}
         commentPortalId={commentPortalId}
         onCommentModeChange={onCommentModeChange}
       />
@@ -3640,8 +3634,6 @@ function HtmlViewer({
   onRemovePreviewComment,
   onSendBoardCommentAttachments,
   onFileSaved,
-  manualEditPortalId,
-  onManualEditModeChange,
   commentPortalId,
   onCommentModeChange,
 }: {
@@ -3658,8 +3650,6 @@ function HtmlViewer({
   onRemovePreviewComment?: (commentId: string) => Promise<void>;
   onSendBoardCommentAttachments?: (attachments: ChatCommentAttachment[]) => Promise<void> | void;
   onFileSaved?: () => Promise<void> | void;
-  manualEditPortalId?: string;
-  onManualEditModeChange?: (active: boolean) => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }) {
@@ -3834,12 +3824,12 @@ function HtmlViewer({
   const [previewPalette, setPreviewPalette] = useState<PaletteId | null>(null);
   const [drawOverlayOpen, setDrawOverlayOpen] = useState(false);
   const [drawOverlayMode, setDrawOverlayMode] = useState<PreviewDrawMode>('click');
+  const [drawOverlayIntent, setDrawOverlayIntent] = useState<'draw' | 'screenshot'>('draw');
   // for hint managing hint box state
   const [openHintBox, setOpenHintBox] = useState(true);
   const [manualEditMode, setManualEditModeRaw] = useState(false);
   const [manualEditFrozenSource, setManualEditFrozenSource] = useState<string | null>(null);
   const [manualEditViewportWidth, setManualEditViewportWidth] = useState<number | null>(null);
-  const [manualEditPortalHost, setManualEditPortalHost] = useState<HTMLElement | null>(null);
   const [commentPortalHost, setCommentPortalHost] = useState<HTMLElement | null>(null);
   const [previewBodyRef, previewBodySize] = usePreviewCanvasSize<HTMLDivElement>();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -3897,37 +3887,11 @@ function HtmlViewer({
     });
   }, []);
   useEffect(() => {
-    onManualEditModeChange?.(manualEditMode);
-  }, [manualEditMode, onManualEditModeChange]);
-  useEffect(() => () => {
-    onManualEditModeChange?.(false);
-  }, [onManualEditModeChange]);
-  useEffect(() => {
     onCommentModeChange?.(commentPanelOpen);
   }, [commentPanelOpen, onCommentModeChange]);
   useEffect(() => () => {
     onCommentModeChange?.(false);
   }, [onCommentModeChange]);
-  useEffect(() => {
-    if (!manualEditMode || !manualEditPortalId) {
-      setManualEditPortalHost(null);
-      return;
-    }
-    let cancelled = false;
-    let raf = 0;
-    const findHost = () => {
-      if (cancelled) return;
-      const host = document.getElementById(manualEditPortalId);
-      setManualEditPortalHost(host);
-      if (!host) raf = window.requestAnimationFrame(findHost);
-    };
-    findHost();
-    return () => {
-      cancelled = true;
-      if (raf) window.cancelAnimationFrame(raf);
-      setManualEditPortalHost(null);
-    };
-  }, [manualEditMode, manualEditPortalId]);
   useEffect(() => {
     if (!commentPanelOpen || !commentPortalId) {
       setCommentPortalHost(null);
@@ -4818,11 +4782,12 @@ function HtmlViewer({
           comment.status === 'open' &&
           comment.elementId === snapshot.elementId,
         );
-        const shouldOpenComposer = drawClickSelectionMode || commentCreateMode || boardTool !== 'inspect';
+        const shouldOpenComposer = boardMode || drawClickSelectionMode || commentCreateMode;
         setActiveCommentTarget((current) => (shouldOpenComposer ? snapshot : current));
         setHoveredCommentTarget(snapshot);
         setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
         if (boardMode && shouldOpenComposer) {
+          setCommentCreateMode(true);
           setActivePreviewCommentId(existing?.id ?? null);
           setCommentDraft(existing?.note ?? '');
           setQueuedBoardNotes([]);
@@ -5695,7 +5660,7 @@ function HtmlViewer({
 
   function activateDrawTool() {
     fireArtifactToolbarClick('draw');
-    const next = !drawOverlayOpen;
+    const next = !(drawOverlayOpen && drawOverlayIntent === 'draw');
     if (!next) {
       setDrawOverlayOpen(false);
       setAgentToolsOpen(false);
@@ -5707,6 +5672,7 @@ function HtmlViewer({
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
+      setDrawOverlayIntent('draw');
       setDrawOverlayMode('draw');
       setMode('preview');
       setDrawOverlayOpen(true);
@@ -5719,6 +5685,35 @@ function HtmlViewer({
       return;
     }
     activateDraw();
+  }
+
+  function activateScreenshotTool() {
+    fireArtifactToolbarClick('draw');
+    const next = !(drawOverlayOpen && drawOverlayIntent === 'screenshot');
+    if (!next) {
+      setDrawOverlayOpen(false);
+      setAgentToolsOpen(false);
+      return;
+    }
+    const activateScreenshot = () => {
+      setCommentPanelOpen(false);
+      setCommentCreateMode(false);
+      setBoardMode(false);
+      clearBoardComposer();
+      setInspectMode(false);
+      setDrawOverlayIntent('screenshot');
+      setDrawOverlayMode('click');
+      setMode('preview');
+      setDrawOverlayOpen(true);
+      closeArtifactToolMenus();
+    };
+    if (manualEditMode) {
+      void exitManualEditModeAfterFlush().then((ok) => {
+        if (ok) activateScreenshot();
+      });
+      return;
+    }
+    activateScreenshot();
   }
 
   function activateCommentTool() {
@@ -5736,6 +5731,7 @@ function HtmlViewer({
       setCommentCreateMode(false);
       clearBoardComposer();
       setInspectMode(false);
+      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       activateBoard('inspect');
@@ -5767,6 +5763,7 @@ function HtmlViewer({
       setCommentCreateMode(true);
       clearBoardComposer();
       setInspectMode(false);
+      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       activateBoard('inspect');
@@ -5790,6 +5787,7 @@ function HtmlViewer({
       setBoardMode(false);
       clearBoardComposer();
       setInspectMode(false);
+      setDrawOverlayIntent('draw');
       setDrawOverlayOpen(false);
       setMode('preview');
       setManualEditViewportWidth(previewBodyRef.current?.clientWidth ?? null);
@@ -6264,16 +6262,28 @@ function HtmlViewer({
                 <RemixIcon name="edit-line" size={15} />
               </button>
               <button
-                className={`viewer-action viewer-action-icon${drawOverlayOpen ? ' active' : ''}`}
+                className={`viewer-action viewer-action-icon${drawOverlayOpen && drawOverlayIntent === 'draw' ? ' active' : ''}`}
                 type="button"
                 data-testid="draw-overlay-toggle"
                 data-tooltip="Draw"
                 title="Draw"
                 aria-label="Draw"
-                aria-pressed={drawOverlayOpen}
+                aria-pressed={drawOverlayOpen && drawOverlayIntent === 'draw'}
                 onClick={activateDrawTool}
               >
                 <RemixIcon name="mark-pen-line" size={15} />
+              </button>
+              <button
+                className={`viewer-action viewer-action-icon${drawOverlayOpen && drawOverlayIntent === 'screenshot' ? ' active' : ''}`}
+                type="button"
+                data-testid="screenshot-capture-toggle"
+                data-tooltip="Screenshot"
+                title="Screenshot"
+                aria-label="Screenshot"
+                aria-pressed={drawOverlayOpen && drawOverlayIntent === 'screenshot'}
+                onClick={activateScreenshotTool}
+              >
+                <RemixIcon name="screenshot-2-line" size={15} />
               </button>
               <div className="artifact-tool-menu-anchor">
                 <button
@@ -6681,16 +6691,14 @@ function HtmlViewer({
         ) : mode === 'preview' ? (
           <div
             className={manualEditMode
-              ? `manual-edit-workspace${manualEditPortalId ? ' manual-edit-workspace-portal' : ''} preview-viewport preview-viewport-${previewViewport}`
+              ? `manual-edit-workspace preview-viewport preview-viewport-${previewViewport}`
               : [
                   'comment-preview-layer',
                   `preview-viewport preview-viewport-${previewViewport}`,
                 ].filter(Boolean).join(' ')}
             style={previewViewportStyle(previewViewport, previewScale, previewBodySize)}
           >
-            {manualEditPortalHost && manualEditPanel
-              ? createPortal(manualEditPanel, manualEditPortalHost)
-              : manualEditPanel}
+            {manualEditPanel}
             <div className={manualEditMode ? 'manual-edit-canvas' : 'comment-frame-clip'}>
               <div
                 style={
@@ -6701,6 +6709,8 @@ function HtmlViewer({
               >
                 <PreviewDrawOverlay
                   active={drawOverlayOpen}
+                  initialMode={drawOverlayIntent === 'screenshot' ? 'click' : 'draw'}
+                  captureViewport={drawOverlayIntent === 'screenshot'}
                   onActiveChange={setDrawOverlayOpen}
                   onModeChange={setDrawOverlayMode}
                   captureTarget={drawClickSelectionMode ? activeCommentTarget : null}

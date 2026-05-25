@@ -106,8 +106,6 @@ interface Props {
   onUseDesignSystem?: (id: string, title: string) => void;
   onConnectRepo?: () => void;
   githubConnected?: boolean;
-  manualEditPortalId?: string;
-  onManualEditModeChange?: (active: boolean) => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }
@@ -226,8 +224,6 @@ export function FileWorkspace({
   onUseDesignSystem,
   onConnectRepo,
   githubConnected,
-  manualEditPortalId,
-  onManualEditModeChange,
   commentPortalId,
   onCommentModeChange,
 }: Props) {
@@ -1073,8 +1069,6 @@ export function FileWorkspace({
             onSendBoardCommentAttachments={onSendBoardCommentAttachments}
             onFileSaved={onRefreshFiles}
             onOpenFileReplacing={openFileReplacing}
-            manualEditPortalId={manualEditPortalId}
-            onManualEditModeChange={onManualEditModeChange}
             commentPortalId={commentPortalId}
             onCommentModeChange={onCommentModeChange}
           />

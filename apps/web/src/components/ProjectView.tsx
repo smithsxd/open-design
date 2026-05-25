@@ -567,11 +567,9 @@ export function ProjectView({
   const [liveArtifacts, setLiveArtifacts] = useState<LiveArtifactSummary[]>([]);
   const [liveArtifactEvents, setLiveArtifactEvents] = useState<LiveArtifactEventItem[]>([]);
   const [workspaceFocused, setWorkspaceFocused] = useState(false);
-  const [manualEditInspectorActive, setManualEditInspectorActive] = useState(false);
   const [commentInspectorActive, setCommentInspectorActive] = useState(false);
-  const manualEditInspectorPortalId = useId();
   const commentInspectorPortalId = useId();
-  const leftInspectorActive = manualEditInspectorActive || commentInspectorActive;
+  const leftInspectorActive = commentInspectorActive;
   // Per-session override for the BYOK SenseAudio chat's generate_image
   // tool. Seeded once from Settings (config.byokImageModel) so the
   // composer dropdown opens on the user's chosen default; subsequent
@@ -4255,13 +4253,7 @@ export function ProjectView({
             }}
       >
         <div className="split-chat-slot" hidden={workspaceFocused}>
-          {manualEditInspectorActive ? (
-            <div
-              id={manualEditInspectorPortalId}
-              className="manual-edit-left-host"
-              aria-label="Edit inspector"
-            />
-          ) : commentInspectorActive ? (
+          {commentInspectorActive ? (
             <div
               id={commentInspectorPortalId}
               className="comment-left-host"
@@ -4397,8 +4389,6 @@ export function ProjectView({
           onDesignSystemReviewDecision={persistDesignSystemReviewDecision}
           onConnectRepo={handleConnectRepo}
           githubConnected={githubConnected}
-          manualEditPortalId={manualEditInspectorPortalId}
-          onManualEditModeChange={setManualEditInspectorActive}
           commentPortalId={commentInspectorPortalId}
           onCommentModeChange={setCommentInspectorActive}
         />

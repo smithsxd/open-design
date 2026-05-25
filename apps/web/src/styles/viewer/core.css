@@ -1108,6 +1108,9 @@
   background: var(--bg-panel);
   box-shadow: var(--shadow-lg);
 }
+.annotation-hover-popover {
+  pointer-events: none;
+}
 .comment-popover-head {
   display: flex;
   align-items: flex-start;
