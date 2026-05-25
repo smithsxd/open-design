@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -567,11 +566,6 @@ export function ProjectView({
   const [liveArtifacts, setLiveArtifacts] = useState<LiveArtifactSummary[]>([]);
   const [liveArtifactEvents, setLiveArtifactEvents] = useState<LiveArtifactEventItem[]>([]);
   const [workspaceFocused, setWorkspaceFocused] = useState(false);
-  const [manualEditInspectorActive, setManualEditInspectorActive] = useState(false);
-  const [commentInspectorActive, setCommentInspectorActive] = useState(false);
-  const manualEditInspectorPortalId = useId();
-  const commentInspectorPortalId = useId();
-  const leftInspectorActive = manualEditInspectorActive || commentInspectorActive;
   // Per-session override for the BYOK SenseAudio chat's generate_image
   // tool. Seeded once from Settings (config.byokImageModel) so the
   // composer dropdown opens on the user's chosen default; subsequent
@@ -4234,7 +4228,6 @@ export function ProjectView({
         ref={splitRef}
         className={[
           projectSplitClassName(workspaceFocused),
-          leftInspectorActive && !workspaceFocused ? 'split-manual-edit' : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
         style={workspaceFocused
@@ -4245,19 +4238,7 @@ export function ProjectView({
             }}
       >
         <div className="split-chat-slot" hidden={workspaceFocused}>
-          {manualEditInspectorActive ? (
-            <div
-              id={manualEditInspectorPortalId}
-              className="manual-edit-left-host"
-              aria-label="Edit inspector"
-            />
-          ) : commentInspectorActive ? (
-            <div
-              id={commentInspectorPortalId}
-              className="comment-left-host"
-              aria-label="Comments"
-            />
-          ) : activeConversationId || conversationLoadError ? (
+          {activeConversationId || conversationLoadError ? (
             <ChatPane
               // The conversation id is part of the key so switching conversations
               // resets internal scroll/draft state inside ChatPane and ChatComposer.
@@ -4337,24 +4318,20 @@ export function ProjectView({
           )}
         </div>
         {!workspaceFocused ? (
-          leftInspectorActive ? (
-            <div className="split-edit-divider" aria-hidden />
-          ) : (
-            <div
-              className="split-resize-handle"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={chatResizeLabel}
-              aria-valuemin={chatPanelAriaMinWidth}
-              aria-valuemax={chatPanelMaxWidth}
-              aria-valuenow={chatPanelWidth}
-              tabIndex={0}
-              title={chatResizeLabel}
-              onPointerDown={handleChatResizePointerDown}
-              onKeyDown={handleChatResizeKeyDown}
-              onBlur={handleChatResizeBlur}
-            />
-          )
+          <div
+            className="split-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={chatResizeLabel}
+            aria-valuemin={chatPanelAriaMinWidth}
+            aria-valuemax={chatPanelMaxWidth}
+            aria-valuenow={chatPanelWidth}
+            tabIndex={0}
+            title={chatResizeLabel}
+            onPointerDown={handleChatResizePointerDown}
+            onKeyDown={handleChatResizeKeyDown}
+            onBlur={handleChatResizeBlur}
+          />
         ) : null}
         <FileWorkspace
           projectId={project.id}

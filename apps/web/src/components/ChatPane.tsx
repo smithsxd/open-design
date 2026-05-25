@@ -392,6 +392,7 @@ export function ChatPane({
   const historyWrapRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const pinnedTodoRef = useRef<HTMLDivElement | null>(null);
+  const queuedSendStripRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   // Tracks whether the user is glued close enough to the bottom that
   // streamed content should auto-follow. Distinct from the jump-button
@@ -657,6 +658,7 @@ export function ChatPane({
     // user drifts away from the bottom. Observe the pinned-todo div so
     // followLatestIfPinned fires whenever the card changes height.
     let observedPinnedTodo: Element | null = null;
+    let observedQueuedSendStrip: Element | null = null;
     const syncPinnedTodo = () => {
       if (!resizeObserver) return;
       const pinnedEl = pinnedTodoRef.current;
@@ -669,15 +671,31 @@ export function ChatPane({
         observedPinnedTodo = null;
       }
     };
+    const syncQueuedSendStrip = () => {
+      if (!resizeObserver) return;
+      const queuedEl = queuedSendStripRef.current;
+      if (queuedEl && observedQueuedSendStrip !== queuedEl) {
+        if (observedQueuedSendStrip) {
+          resizeObserver.unobserve(observedQueuedSendStrip);
+        }
+        resizeObserver.observe(queuedEl);
+        observedQueuedSendStrip = queuedEl;
+      } else if (!queuedEl && observedQueuedSendStrip) {
+        resizeObserver.unobserve(observedQueuedSendStrip);
+        observedQueuedSendStrip = null;
+      }
+    };
 
     syncObservedChildren();
     syncPinnedTodo();
+    syncQueuedSendStrip();
 
     const mutationObserver =
       typeof MutationObserver !== 'undefined'
         ? new MutationObserver(() => {
             syncObservedChildren();
             syncPinnedTodo();
+            syncQueuedSendStrip();
             followLatestIfPinned();
           })
         : null;
@@ -686,11 +704,11 @@ export function ChatPane({
       subtree: true,
       characterData: true,
     });
-    // PinnedTodoSlot lives outside the chat-log subtree (it is a sibling of
-    // .chat-log-wrap inside .pane). The MutationObserver above only fires for
-    // changes inside el, so it cannot detect the slot mounting or unmounting.
-    // Watch the nearest common ancestor (.pane) with childList-only to catch
-    // those transitions and keep syncPinnedTodo current.
+    // PinnedTodoSlot and QueuedSendStrip live outside the chat-log subtree
+    // (they are siblings of .chat-log-wrap inside .pane). The
+    // MutationObserver above only fires for changes inside el, so it cannot
+    // detect those surfaces mounting or unmounting. Watch the nearest common
+    // ancestor (.pane) with childList-only to keep their observers current.
     const paneEl = el.parentElement?.parentElement ?? null;
     if (paneEl && mutationObserver) {
       mutationObserver.observe(paneEl, { childList: true });
@@ -1133,6 +1151,7 @@ export function ChatPane({
             containerRef={pinnedTodoRef}
           />
           <QueuedSendStrip
+            containerRef={queuedSendStripRef}
             items={queuedItems}
             onRemove={onRemoveQueuedSend}
             onUpdate={onUpdateQueuedSend}
@@ -1230,11 +1249,13 @@ function PinnedTodoSlot({
 }
 
 function QueuedSendStrip({
+  containerRef,
   items,
   onRemove,
   onSendNow,
   onUpdate,
 }: {
+  containerRef?: MutableRefObject<HTMLDivElement | null>;
   items: Array<{ id: string; prompt: string }>;
   onRemove?: (id: string) => void;
   onSendNow?: (id: string) => void;
@@ -1262,12 +1283,18 @@ function QueuedSendStrip({
     setEditingDraft('');
   };
   return (
-    <div className="chat-queued-send-strip" data-testid="chat-queued-send-strip">
+    <div
+      ref={containerRef}
+      className="chat-queued-send-strip"
+      data-testid="chat-queued-send-strip"
+    >
       <div className="chat-queued-send-header">
         <div className="chat-queued-send-heading">
-          <strong>{items.length} Queued</strong>
+          <strong>
+            {items.length} {t('chat.queuedHeader')}
+          </strong>
           <span aria-hidden>↩</span>
-          <span>to Send</span>
+          <span>{t('chat.queuedToSend')}</span>
         </div>
       </div>
       {visible.map((item, index) => (
@@ -1297,13 +1324,13 @@ function QueuedSendStrip({
                     cancelEdit();
                   }
                 }}
-                aria-label="Edit queued task"
+                aria-label={t('chat.queuedEditQueuedTaskAria')}
               />
               <button
                 type="submit"
                 className="chat-queued-send-action"
-                title="Save"
-                aria-label="Save"
+                title={t('chat.queuedSave')}
+                aria-label={t('chat.queuedSave')}
                 disabled={!editingDraft.trim()}
               >
                 <Icon name="check" size={13} />
@@ -1311,8 +1338,8 @@ function QueuedSendStrip({
               <button
                 type="button"
                 className="chat-queued-send-action"
-                title="Cancel"
-                aria-label="Cancel"
+                title={t('chat.queuedCancel')}
+                aria-label={t('chat.queuedCancel')}
                 onClick={cancelEdit}
               >
                 <Icon name="close" size={13} />
@@ -1320,14 +1347,14 @@ function QueuedSendStrip({
             </form>
           ) : (
             <>
-              <span className="chat-queued-send-title">{summarizeQueuedPrompt(item.prompt)}</span>
+              <span className="chat-queued-send-title">{summarizeQueuedPrompt(item.prompt, t)}</span>
               <div className="chat-queued-send-actions">
                 {onUpdate ? (
                   <button
                     type="button"
                     className="chat-queued-send-action"
-                    title="Edit"
-                    aria-label="Edit"
+                    title={t('chat.queuedEdit')}
+                    aria-label={t('chat.queuedEdit')}
                     onClick={() => startEdit(item)}
                   >
                     <Icon name="pencil" size={13} />
@@ -1363,7 +1390,7 @@ function QueuedSendStrip({
         <div className="chat-queued-send-overflow">
           <span className="chat-queued-send-overflow-line" aria-hidden />
           <span className="chat-queued-send-extra">+{extra}</span>
-          <span>more queued</span>
+          <span>{t('chat.queuedMore')}</span>
         </div>
       ) : null}
     </div>
@@ -1372,9 +1399,9 @@ function QueuedSendStrip({
 
 const QUEUED_SEND_VISIBLE_LIMIT = 4;
 
-function summarizeQueuedPrompt(prompt: string): string {
+function summarizeQueuedPrompt(prompt: string, t: TranslateFn): string {
   const normalized = prompt.replace(/\s+/g, ' ').trim();
-  if (!normalized) return 'Queued follow-up';
+  if (!normalized) return t('chat.queuedFollowUpFallback');
   return normalized.length > 58 ? `${normalized.slice(0, 57)}...` : normalized;
 }
 
