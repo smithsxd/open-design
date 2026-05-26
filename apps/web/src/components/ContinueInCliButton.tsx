@@ -17,7 +17,6 @@
 // component itself.
 
 import type { DesignMdState, DesignMdStaleReason } from '../hooks/useDesignMdState';
-import { Button } from '@open-design/components';
 
 const STALE_CHIP_TEXT = 'Spec is stale — regenerate?';
 // Round 7 (mrcfps @ useDesignMdState.ts:160): malformed provenance
@@ -47,13 +46,14 @@ export function ContinueInCliButton({ designMdState, onClick }: ContinueInCliBut
     // explanation when the disabled button gets focused.
     return (
       <span className="project-actions-button-group">
-        <Button
+        <button
+          type="button"
           className="project-actions-button project-actions-button-secondary"
           disabled
           aria-describedby="continue-in-cli-disabled-hint"
         >
           Continue in CLI
-        </Button>
+        </button>
         <span
           id="continue-in-cli-disabled-hint"
           className="project-actions-disabled-hint"
@@ -67,14 +67,15 @@ export function ContinueInCliButton({ designMdState, onClick }: ContinueInCliBut
 
   return (
     <span className="project-actions-button-group">
-      <Button
+      <button
+        type="button"
         className="project-actions-button project-actions-button-secondary"
         onClick={() => {
           void onClick();
         }}
       >
         Continue in CLI
-      </Button>
+      </button>
       {designMdState.isStale ? (
         <span className="project-actions-chip" role="note" aria-label="Spec staleness">
           {chipTextForReason(designMdState.staleReason)}
