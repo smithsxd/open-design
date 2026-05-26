@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-26T17:00:17.837Z",
+  "generatedAt": "2026-05-26T18:22:02.221Z",
   "contributors": {
     "1115052994": {
       "lastAnnouncedTier": "spark",
@@ -1809,8 +1809,8 @@
     },
     "roverkai": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 31,
-      "lastCheckedAt": "2026-05-26T06:57:41.327Z",
+      "lastKnownScore": 33,
+      "lastCheckedAt": "2026-05-26T18:22:02.221Z",
       "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-26T06:57:41.327Z"
     },
