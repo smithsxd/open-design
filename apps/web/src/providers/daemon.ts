@@ -403,10 +403,10 @@ export interface VelaLoginStatus {
 }
 
 // AMR (vela) login surfaces three thin endpoints on the daemon:
-//   GET  /api/integrations/vela/status   — read ~/.vela/config.json projection
+//   GET  /api/integrations/vela/status   — read ~/.amr/config.json projection
 //   POST /api/integrations/vela/login    — spawn `vela login` (vela opens browser itself)
 //   POST /api/integrations/vela/login/cancel — terminate a still-pending login
-//   POST /api/integrations/vela/logout   — clear ~/.vela auth and Settings-backed AMR auth env
+//   POST /api/integrations/vela/logout   — clear ~/.amr auth and Settings-backed AMR auth env
 // The Settings UI polls /status after kicking off /login to detect completion.
 export async function fetchVelaLoginStatus(): Promise<VelaLoginStatus | null> {
   try {

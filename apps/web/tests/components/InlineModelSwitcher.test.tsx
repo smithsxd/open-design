@@ -85,7 +85,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loggedIn: false,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -135,7 +135,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loggedIn: false,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -187,7 +187,7 @@ describe('InlineModelSwitcher AMR row', () => {
               email: 'manual-amr@example.local',
               name: 'Manual AMR Test User',
             },
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -219,7 +219,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loginInFlight: true,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -253,14 +253,14 @@ describe('InlineModelSwitcher AMR row', () => {
                   loginInFlight: false,
                   profile: 'default',
                   user: { id: 'user-1', email: 'manual-amr@example.local' },
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 }
               : {
                   loggedIn: false,
                   loginInFlight: false,
                   profile: 'default',
                   user: null,
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 },
           ),
           { status: 200, headers: { 'content-type': 'application/json' } },
@@ -307,7 +307,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loginInFlight: loginStarted,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -372,7 +372,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loginInFlight: loginStarted,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -442,13 +442,13 @@ describe('InlineModelSwitcher AMR row', () => {
                   loggedIn: true,
                   profile: 'default',
                   user: { id: 'user-1', email: 'manual-amr@example.local' },
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 }
               : {
                   loggedIn: false,
                   profile: 'default',
                   user: null,
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 },
           ),
           { status: 200, headers: { 'content-type': 'application/json' } },
@@ -483,7 +483,7 @@ describe('InlineModelSwitcher AMR row', () => {
             loggedIn: false,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );

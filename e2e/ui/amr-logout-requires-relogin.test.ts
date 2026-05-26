@@ -32,13 +32,13 @@ test('after local Sign out, AMR runs require re-login and Settings keeps AMR sel
         ? {
             loggedIn: true,
             profile: 'local',
-            configPath: '/tmp/.vela/config.json',
+            configPath: '/tmp/.amr/config.json',
             user: { id: 'logout-ui', email: 'logout-ui@example.com' },
           }
         : {
             loggedIn: false,
             profile: 'local',
-            configPath: '/tmp/.vela/config.json',
+            configPath: '/tmp/.amr/config.json',
             user: null,
           },
     });

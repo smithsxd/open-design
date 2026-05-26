@@ -172,13 +172,13 @@ async function wireOnboardingMocks(
         ? {
             loggedIn: true,
             profile: 'local',
-            configPath: '/tmp/.vela/config.json',
+            configPath: '/tmp/.amr/config.json',
             user: { id: 'user-1', email: 'onboarding@example.com', plan: 'free' },
           }
         : {
             loggedIn: false,
             profile: 'local',
-            configPath: '/tmp/.vela/config.json',
+            configPath: '/tmp/.amr/config.json',
             user: null,
           },
     });

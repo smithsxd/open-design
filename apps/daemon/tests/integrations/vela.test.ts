@@ -4,7 +4,7 @@
  * `tests/amr-acp-integration.test.ts` (which uses the fake-vela stub); here
  * we focus on the status reader that drives the Settings UI.
  *
- * `~/.vela/config.json` is the source of truth — vela CLI writes it on
+ * `~/.amr/config.json` is the source of truth — vela CLI writes it on
  * successful `vela login` and Open Design just surfaces a small projection.
  * Tests redirect HOME via env so we never touch the real user file.
  */
@@ -20,7 +20,7 @@ import {
   readVelaLoginStatus,
   resolveAmrProfile,
   spawnVelaLogin,
-  velaConfigPath,
+  amrConfigPath,
 } from '../../src/integrations/vela.js';
 
 let originalHome: string | undefined;
@@ -29,6 +29,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_VELA = path.resolve(HERE, '..', 'fixtures', 'fake-vela.mjs');
 
 function writeConfig(payload: unknown): string {
+  const dir = path.join(tmpHome, '.amr');
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'config.json');
+  writeFileSync(file, JSON.stringify(payload), 'utf8');
+  return file;
+}
+
+function writeLegacyVelaConfig(payload: unknown): string {
   const dir = path.join(tmpHome, '.vela');
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'config.json');
@@ -83,15 +91,30 @@ describe('resolveAmrProfile', () => {
 });
 
 describe('readVelaLoginStatus', () => {
-  it('returns loggedIn=false when ~/.vela/config.json is absent', () => {
+  it('returns loggedIn=false when ~/.amr/config.json is absent', () => {
     const status = readVelaLoginStatus({ OPEN_DESIGN_AMR_PROFILE: 'local' });
     expect(status.loggedIn).toBe(false);
     expect(status.user).toBeNull();
     expect(status.profile).toBe('local');
-    expect(status.configPath).toBe(velaConfigPath());
+    expect(status.configPath).toBe(amrConfigPath());
   });
 
-  it('treats configured AMR env credentials as logged in without a vela config file', () => {
+  it('ignores legacy ~/.vela/config.json when ~/.amr/config.json is absent', () => {
+    writeLegacyVelaConfig({
+      profiles: {
+        local: {
+          runtimeKey: 'rt-legacy',
+          user: { id: 'legacy-user', email: 'legacy@example.com' },
+        },
+      },
+    });
+    const status = readVelaLoginStatus({ OPEN_DESIGN_AMR_PROFILE: 'local' });
+    expect(status.loggedIn).toBe(false);
+    expect(status.user).toBeNull();
+    expect(status.configPath).toBe(amrConfigPath());
+  });
+
+  it('treats configured AMR env credentials as logged in without an AMR config file', () => {
     const status = readVelaLoginStatus(
       { OPEN_DESIGN_AMR_PROFILE: 'local' },
       {
@@ -121,7 +144,7 @@ describe('readVelaLoginStatus', () => {
     expect(status.user?.email).toBe('local@example.com');
   });
 
-  it('treats daemon process AMR env credentials as logged in without a vela config file', () => {
+  it('treats daemon process AMR env credentials as logged in without an AMR config file', () => {
     const status = readVelaLoginStatus({
       OPEN_DESIGN_AMR_PROFILE: 'local',
       VELA_RUNTIME_KEY: 'rt-process-secret',
@@ -213,7 +236,7 @@ describe('readVelaLoginStatus', () => {
   });
 
   it('treats malformed JSON as logged-out rather than crashing', () => {
-    const file = path.join(tmpHome, '.vela', 'config.json');
+    const file = path.join(tmpHome, '.amr', 'config.json');
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, '{not json', 'utf8');
     expect(readVelaLoginStatus({ OPEN_DESIGN_AMR_PROFILE: 'local' }).loggedIn).toBe(false);
@@ -321,7 +344,7 @@ describe('spawnVelaLogin', () => {
     expect(result.pid).toBeGreaterThan(0);
     expect(result.profile).toBe('test');
 
-    const file = path.join(tmpHome, '.vela', 'config.json');
+    const file = path.join(tmpHome, '.amr', 'config.json');
     for (let i = 0; i < 20; i += 1) {
       if (existsSync(file)) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
@@ -350,7 +373,7 @@ describe('spawnVelaLogin', () => {
     expect(result.pid).toBeGreaterThan(0);
     expect(result.profile).toBe('local');
 
-    const file = path.join(tmpHome, '.vela', 'config.json');
+    const file = path.join(tmpHome, '.amr', 'config.json');
     for (let i = 0; i < 20; i += 1) {
       if (existsSync(file)) break;
       await new Promise((resolve) => setTimeout(resolve, 25));

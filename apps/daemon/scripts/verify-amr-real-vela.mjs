@@ -41,7 +41,7 @@ if (
   console.error(
     'Provide credentials via either:\n' +
       '  - VELA_RUNTIME_KEY + VELA_LINK_URL env vars, or\n' +
-      '  - VELA_PROFILE (e.g. "local") with a logged-in ~/.vela/config.json.',
+      '  - VELA_PROFILE (e.g. "local") with a logged-in ~/.amr/config.json.',
   );
   process.exit(2);
 }

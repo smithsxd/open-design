@@ -4,10 +4,10 @@
 // memory-config-route.test.ts) and exercises the three endpoints from the
 // outside — `/api/integrations/vela/{status,login,logout}` — so the Settings
 // AmrLoginPill provider helpers, the spawn lifecycle, and the
-// ~/.vela/config.json projection all stay in lockstep.
+// ~/.amr/config.json projection all stay in lockstep.
 //
 // HOME is redirected to a tmpdir per test so the suite never touches the
-// developer's real `~/.vela/config.json`. VELA_BIN points at the
+// developer's real `~/.amr/config.json`. VELA_BIN points at the
 // `tests/fixtures/fake-vela.mjs` stub, which handles the `login` argv by
 // writing the config file with the active VELA_PROFILE and exiting 0 —
 // mirroring real vela's on-disk side-effect without the device-auth loop.
@@ -49,6 +49,10 @@ async function postJson<T = unknown>(url: string): Promise<{ status: number; bod
 }
 
 function configPath(): string {
+  return path.join(tmpHome, '.amr', 'config.json');
+}
+
+function legacyVelaConfigPath(): string {
   return path.join(tmpHome, '.vela', 'config.json');
 }
 
@@ -123,7 +127,7 @@ afterEach(() => {
 });
 
 describe('GET /api/integrations/vela/status', () => {
-  it('reports loggedIn=false when ~/.vela/config.json is absent', async () => {
+  it('reports loggedIn=false when ~/.amr/config.json is absent', async () => {
     const { status, body } = await getJson<{
       loggedIn: boolean;
       loginInFlight: boolean;
@@ -139,6 +143,34 @@ describe('GET /api/integrations/vela/status', () => {
     // configPath must point inside the temp HOME so the suite never leaks
     // into the developer's real config file.
     expect(body.configPath.startsWith(tmpHome)).toBe(true);
+    expect(body.configPath).toContain('/.amr/');
+  });
+
+  it('ignores legacy ~/.vela/config.json when reporting AMR status', async () => {
+    const legacyPath = legacyVelaConfigPath();
+    mkdirSync(path.dirname(legacyPath), { recursive: true });
+    writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        profiles: {
+          local: {
+            runtimeKey: 'rt-legacy',
+            user: { id: 'legacy-user', email: 'legacy@example.com' },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const { status, body } = await getJson<{
+      loggedIn: boolean;
+      user: { email?: string } | null;
+      configPath: string;
+    }>(`${baseUrl}/api/integrations/vela/status`);
+    expect(status).toBe(200);
+    expect(body.loggedIn).toBe(false);
+    expect(body.user).toBeNull();
+    expect(body.configPath).toContain('/.amr/');
   });
 
   it('reports Settings-configured AMR env credentials as logged in', async () => {
@@ -265,7 +297,7 @@ describe('POST /api/integrations/vela/login', () => {
     expect(body.profile).toBe('local');
     expect(body.startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-    // The fake vela writes ~/.vela/config.json synchronously before exit.
+    // The fake vela writes ~/.amr/config.json synchronously before exit.
     // Wait briefly for the child to finish so the next status read sees
     // the on-disk projection production produces.
     for (let i = 0; i < 50; i += 1) {
@@ -493,7 +525,7 @@ describe('POST /api/integrations/vela/logout', () => {
     }
   });
 
-  it('logs out the Settings-configured AMR profile from the vela config file', async () => {
+  it('logs out the Settings-configured AMR profile from the AMR config file', async () => {
     const dataDir = process.env.OD_DATA_DIR as string;
     const previous = await readAppConfig(dataDir);
     seedLogin('local');

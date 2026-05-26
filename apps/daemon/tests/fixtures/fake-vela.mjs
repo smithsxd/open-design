@@ -2,7 +2,7 @@
 /**
  * Fake vela CLI used by AMR integration tests. Routes by the first argv:
  *
- *   `vela login`                        → writes ~/.vela/config.json (the
+ *   `vela login`                        → writes ~/.amr/config.json (the
  *                                         active VELA_PROFILE only) and
  *                                         exits 0. Mirrors the real
  *                                         device-authorization flow's
@@ -221,7 +221,7 @@ stdin.on('end', () => {
 
 // `vela login`: the daemon's /api/integrations/vela/login route spawns this
 // without expecting any ACP traffic. Real vela goes through a device-auth
-// loop and writes ~/.vela/config.json on success; the stub skips the loop
+// loop and writes ~/.amr/config.json on success; the stub skips the loop
 // and just writes the file so Open Design's status reader and AmrLoginPill
 // poller see the same on-disk projection production produces. The stdin EOF
 // handler above ignores login mode so delayed login tests can keep this
@@ -241,7 +241,7 @@ function loginAndExit() {
   const userEmail = env.FAKE_VELA_LOGIN_USER_EMAIL || 'fake-user@example.com';
   const userPlan = env.FAKE_VELA_LOGIN_USER_PLAN || 'free';
   const finish = () => {
-    const file = join(homedir(), '.vela', 'config.json');
+    const file = join(homedir(), '.amr', 'config.json');
     mkdirSync(dirname(file), { recursive: true });
     const payload = {
       profiles: {

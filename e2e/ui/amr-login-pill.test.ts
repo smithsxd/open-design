@@ -91,7 +91,7 @@ async function wireDaemonMocks(page: Page, state: VelaMockState) {
       ? {
           loggedIn: true,
           profile: 'local',
-          configPath: '/tmp/.vela/config.json',
+          configPath: '/tmp/.amr/config.json',
           user: {
             id: 'fake-user',
             email: 'pill-test@example.com',
@@ -103,7 +103,7 @@ async function wireDaemonMocks(page: Page, state: VelaMockState) {
           loggedIn: false,
           profile: 'local',
           user: null,
-          configPath: '/tmp/.vela/config.json',
+          configPath: '/tmp/.amr/config.json',
         };
     await route.fulfill({ json: body });
   });
@@ -112,7 +112,7 @@ async function wireDaemonMocks(page: Page, state: VelaMockState) {
     // Real daemon spawns `vela login` async and returns 202; we mirror
     // that shape and flip the in-memory state so the next status poll
     // sees a logged-in user — equivalent to vela CLI completing the
-    // device-auth flow and writing ~/.vela/config.json.
+    // device-auth flow and writing ~/.amr/config.json.
     state.loggedIn = true;
     await route.fulfill({ status: 202, json: { pid: 4242, startedAt: new Date().toISOString(), profile: 'local' } });
   });

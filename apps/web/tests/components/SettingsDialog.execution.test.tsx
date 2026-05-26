@@ -1367,7 +1367,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
             loggedIn: false,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -1450,7 +1450,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
               email: 'signed-in@example.com',
               name: 'Signed In User',
             },
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -1492,13 +1492,13 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
                   loggedIn: true,
                   profile: 'local',
                   user: { id: 'user-1', email: 'signed-in@example.com' },
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 }
               : {
                   loggedIn: false,
                   profile: 'local',
                   user: null,
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 },
           ),
           { status: 200, headers: { 'content-type': 'application/json' } },
@@ -1543,7 +1543,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
             loggedIn: statusCalls === 1,
             profile: 'local',
             user: statusCalls === 1 ? { id: 'user-1', email: 'signed-in@example.com' } : null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );

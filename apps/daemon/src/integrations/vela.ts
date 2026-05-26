@@ -49,15 +49,15 @@ export function mergeVelaEnv(
 }
 
 function configDir(): string {
-  return path.join(homedir(), '.vela');
+  return path.join(homedir(), '.amr');
 }
 
-export function velaConfigPath(): string {
+export function amrConfigPath(): string {
   return path.join(configDir(), 'config.json');
 }
 
 function readConfigFile(): VelaConfigFileShape | null {
-  const file = velaConfigPath();
+  const file = amrConfigPath();
   if (!existsSync(file)) return null;
   try {
     const data = readFileSync(file, 'utf8');
@@ -75,7 +75,7 @@ export function readVelaLoginStatus(
 ): VelaLoginStatus {
   const mergedEnv = mergeVelaEnv(env, configuredEnv);
   const profile = resolveAmrProfile(mergedEnv);
-  const configPath = velaConfigPath();
+  const configPath = amrConfigPath();
   const loginInFlight = isVelaLoginInFlight();
   const runtimeKey = mergedEnv.VELA_RUNTIME_KEY?.trim() ?? '';
   const linkUrl = mergedEnv.VELA_LINK_URL?.trim() ?? '';
@@ -102,7 +102,7 @@ export function readVelaLoginStatus(
 }
 
 export function forgetVelaLogin(env: NodeJS.ProcessEnv = process.env): void {
-  const file = velaConfigPath();
+  const file = amrConfigPath();
   if (!existsSync(file)) return;
   const parsed = readConfigFile();
   if (!parsed?.profiles) return;

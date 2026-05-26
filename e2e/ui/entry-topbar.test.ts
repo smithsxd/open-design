@@ -103,7 +103,7 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({
         loggedIn: true,
         profile: 'local',
-        configPath: '/tmp/.vela/config.json',
+        configPath: '/tmp/.amr/config.json',
         user: {
           id: 'topbar-user',
           email: 'topbar@example.com',
