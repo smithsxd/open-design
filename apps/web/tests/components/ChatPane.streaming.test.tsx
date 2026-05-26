@@ -99,6 +99,54 @@ describe('ChatPane streaming state', () => {
     expect(bubble.closest('.msg.user')).not.toBeNull();
   });
 
+  it('hides internal path ids from comment attachment chips', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'user-1',
+        role: 'user',
+        content: '',
+        createdAt: 1,
+        commentAttachments: [
+          {
+            id: 'comment-1',
+            order: 1,
+            filePath: 'preview.html',
+            elementId: 'path-0-0-0-0-1',
+            selector: '[data-od-id="path-0-0-0-0-1"]',
+            label: '',
+            comment: '222',
+            currentText: '',
+            pagePosition: { x: 10, y: 20, width: 30, height: 40 },
+            htmlHint: '<div>',
+          },
+        ],
+      },
+    ];
+
+    render(
+      <ChatPane
+        projectKindForTracking="prototype"
+        messages={messages}
+        streaming={false}
+        error={null}
+        projectId="project-1"
+        projectFiles={[]}
+        onEnsureProject={async () => 'project-1'}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        conversations={conversations}
+        activeConversationId="conv-1"
+        onSelectConversation={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        projectMetadata={projectMetadata}
+      />,
+    );
+
+    expect(screen.getByText('Annotation')).toBeTruthy();
+    expect(screen.getByText('222')).toBeTruthy();
+    expect(screen.queryByText('path-0-0-0-0-1')).toBeNull();
+  });
+
   it('summarizes auto-sent design-system workspace prompts', () => {
     const messages: ChatMessage[] = [
       {

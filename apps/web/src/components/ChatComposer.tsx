@@ -35,7 +35,7 @@ import type {
   ResearchOptions,
   RunContextSelection,
 } from '@open-design/contracts';
-import { buildVisualAnnotationAttachment } from '../comments';
+import { buildVisualAnnotationAttachment, commentTargetDisplayName } from '../comments';
 import { Icon } from "./Icon";
 import { PluginDetailsModal } from "./PluginDetailsModal";
 import { PluginsSection, type PluginsSectionHandle } from "./PluginsSection";
@@ -1979,8 +1979,8 @@ function StagedCommentAttachments({
     <div className="staged-row comment-staged-row" data-testid="staged-comment-attachments">
       {visibleAttachments.map((a) => (
         <div key={a.id} className="staged-chip staged-comment">
-          <span className="staged-name" title={`${a.screenshotPath ? `${a.screenshotPath}: ` : ''}${a.elementId}: ${a.comment}`}>
-            <strong>{a.selectionKind === 'visual' ? 'Visual mark' : a.elementId}</strong>
+          <span className="staged-name" title={`${a.screenshotPath ? `${a.screenshotPath}: ` : ''}${commentTargetDisplayName(a)}: ${a.comment}`}>
+            <strong>{commentTargetDisplayName(a)}</strong>
             <span>{a.comment}</span>
           </span>
           <button

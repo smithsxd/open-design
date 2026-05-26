@@ -17,7 +17,7 @@ import { latestTodoWriteInputForPinnedCard } from '../runtime/todos';
 import { TodoCard } from './ToolCard';
 import type { AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
 import { dayKey, dayLabel, exactDateTime, messageTime, relativeTimeLong } from '../utils/chatTime';
-import { commentsToAttachments, simplePositionLabel } from '../comments';
+import { commentTargetDisplayName, commentsToAttachments, simplePositionLabel } from '../comments';
 import { AssistantMessage } from './AssistantMessage';
 import {
   ChatComposer,
@@ -1409,7 +1409,7 @@ function CommentSection({
             data-testid={`comment-card-${comment.elementId}`}
           >
             <div className="comment-card-top">
-              <strong>{comment.elementId}</strong>
+              <strong>{commentTargetDisplayName(comment)}</strong>
               <div className="comment-card-actions">
                 {secondaryActionLabel && onSecondaryAction ? (
                   <button
@@ -1429,7 +1429,7 @@ function CommentSection({
             <div className="comment-card-meta">
               <span>{comment.id}</span>
               <span>{comment.filePath}</span>
-              <span>{comment.label}</span>
+              <span>{commentTargetDisplayName(comment)}</span>
               <span>{simplePositionLabel(comment.position)}</span>
             </div>
           </article>
@@ -1674,8 +1674,8 @@ function UserMessage({
         <div className="user-attachments comment-history-attachments">
           {commentAttachments.filter((attachment) => attachment.selectionKind !== 'visual').map((a) => (
             <span key={a.id} className="user-attachment staged-comment">
-              <span className="staged-name" title={`${a.elementId}: ${a.comment}`}>
-                <strong>{a.selectionKind === 'visual' ? 'Visual mark' : a.elementId}</strong>
+              <span className="staged-name" title={`${commentTargetDisplayName(a)}: ${a.comment}`}>
+                <strong>{commentTargetDisplayName(a)}</strong>
                 <span>{a.comment}</span>
               </span>
             </span>

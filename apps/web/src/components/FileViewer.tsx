@@ -89,6 +89,7 @@ import { Toast } from './Toast';
 import { PreviewDrawOverlay } from './PreviewDrawOverlay';
 import {
   buildBoardCommentAttachments,
+  commentTargetDisplayName,
   commentsToAttachments,
   liveSnapshotForComment,
   overlayBoundsFromSnapshot,
@@ -1904,7 +1905,7 @@ function formatCommentTime(ts: number, t: TranslateFn): string {
 
 function commentDisplayLabel(comment: PreviewComment, t: TranslateFn): string {
   if (comment.elementId.startsWith('pin-')) return t('chat.comments.pin');
-  return comment.label || comment.elementId;
+  return commentTargetDisplayName(comment);
 }
 
 export function CommentSidePanel({
@@ -2831,6 +2832,7 @@ function CommentPreviewOverlays({
     <div className="comment-overlay-layer" aria-hidden={false}>
       {visibleComments.map(({ comment, index, snapshot }) => {
         const bounds = overlayBoundsFromSnapshot(snapshot, scale);
+        const label = commentTargetDisplayName(comment);
         return (
           <div
             key={comment.id}
@@ -2852,8 +2854,8 @@ function CommentPreviewOverlays({
                 event.stopPropagation();
                 onOpenComment(comment, snapshot);
               }}
-              title={`${comment.elementId}: ${comment.note}`}
-              aria-label={`Open comment for ${comment.elementId}`}
+              title={`${label}: ${comment.note}`}
+              aria-label={`Open comment for ${label}`}
             >
               C
             </button>
