@@ -172,6 +172,7 @@ export async function assertExternalAssetUrl(
 // Override with OD_CONNECTION_TEST_PROVIDER_TIMEOUT_MS for slow networks
 // or distant providers; invalid values fall back to the default.
 const DEFAULT_PROVIDER_TIMEOUT_MS = 12_000;
+const LOOPBACK_NO_PROXY_TOKENS = ['localhost', '127.0.0.1', '::1'] as const;
 // CLI boot time is dominated by adapter auth/session restore; the heavy
 // adapters (Codex, Cursor Agent) regularly take 5–10 s on a cold first
 // run, so 45 s leaves headroom without making a hung child invisible.
@@ -216,13 +217,28 @@ function agentTimeoutMs(): number {
   );
 }
 
+function mergeNoProxyWithLoopbackDefaults(noProxy: string | undefined): string | null {
+  const seen = new Set<string>();
+  const values: string[] = [];
+  for (const rawToken of [
+    ...(noProxy ? noProxy.split(',') : []),
+    ...LOOPBACK_NO_PROXY_TOKENS,
+  ]) {
+    const token = rawToken.trim();
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    values.push(token);
+  }
+  return values.length > 0 ? values.join(',') : null;
+}
+
 function buildConnectionTestProxyDispatcher(
   env: NodeJS.ProcessEnv = process.env,
 ): EnvHttpProxyAgent | null {
   const proxyEnv = mergeProxyAwareEnv(process.platform, resolveSystemProxyEnv(), env);
   const httpProxy = proxyEnv.HTTP_PROXY ?? proxyEnv.http_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
   const httpsProxy = proxyEnv.HTTPS_PROXY ?? proxyEnv.https_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
-  const noProxy = proxyEnv.NO_PROXY ?? proxyEnv.no_proxy;
+  const noProxy = mergeNoProxyWithLoopbackDefaults(proxyEnv.NO_PROXY ?? proxyEnv.no_proxy);
   if (!httpProxy && !httpsProxy) return null;
   return new EnvHttpProxyAgent({
     ...(httpProxy ? { httpProxy } : {}),

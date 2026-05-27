@@ -1,7 +1,7 @@
 // Coverage for the /api/test/connection route. Hits status mapping for each
 // provider protocol and uses fake CLI bins for deterministic agent outcomes.
 
-import type http from 'node:http';
+import * as http from 'node:http';
 import { promises as dnsPromises } from 'node:dns';
 import { promises as fsp } from 'node:fs';
 import os from 'node:os';
@@ -1532,6 +1532,57 @@ describe('POST /api/test/connection provider mode', () => {
       });
     } finally {
       proxySpy.mockRestore();
+    }
+  });
+
+  it('keeps loopback provider probes off the proxy when user NO_PROXY omits localhost', async () => {
+    const providerServer = http.createServer((req, res) => {
+      if (req.url === '/v1/models') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ data: [{ id: 'google/gemma-4-e4b', object: 'model' }] }));
+        return;
+      }
+      if (req.url === '/v1/chat/completions') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        }));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((resolve) => providerServer.listen(0, '127.0.0.1', () => resolve()));
+    const address = providerServer.address();
+    if (!address || typeof address === 'string') {
+      providerServer.close();
+      throw new Error('Expected an IPv4 provider test server address');
+    }
+
+    const originalNoProxy = process.env.NO_PROXY;
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({
+      HTTP_PROXY: 'http://127.0.0.1:9',
+      NO_PROXY: 'localhost,127.0.0.1,::1',
+      NODE_USE_ENV_PROXY: '1',
+    });
+    process.env.NO_PROXY = '*.corp.com';
+
+    try {
+      await expect(testProviderConnection({
+        protocol: 'openai',
+        baseUrl: `http://127.0.0.1:${address.port}/v1`,
+        apiKey: 'lm-studio',
+        model: 'google/gemma-4-e4b',
+      })).resolves.toMatchObject({
+        ok: true,
+        kind: 'success',
+      });
+    } finally {
+      if (originalNoProxy === undefined) delete process.env.NO_PROXY;
+      else process.env.NO_PROXY = originalNoProxy;
+      proxySpy.mockRestore();
+      await new Promise<void>((resolve, reject) =>
+        providerServer.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   });
 });
