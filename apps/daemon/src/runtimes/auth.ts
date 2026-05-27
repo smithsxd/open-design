@@ -90,11 +90,20 @@ export type AgentServiceFailureCode =
 
 // A bare HTTP status number (`500`, `429`, …) is too noisy to trust on its own
 // — agent stderr is full of unrelated numbers (`line 500`, `read 502 bytes`,
-// `took 503ms`, `exit code 401`). Only treat a status number as a signal when
-// it carries explicit status context (`HTTP 500`, `status 429`, `code: 401`,
-// `server error 503`) so ordinary numeric output is not misread as a provider
-// outage / auth wall. Matches the phrasing requested in review on #3083.
-const STATUS_CTX = '(?:\\bhttp(?:[ /]?\\d(?:\\.\\d)?)?\\b|\\bstatus(?:[ _-]?code)?\\b|\\bcode\\b|\\b(?:server|http)[ _-]?error\\b)[\\s:=#-]*';
+// `took 503ms`, `exit code 401`, `process exited with code 429`). Only treat a
+// status number as a signal when it carries explicit HTTP-status context
+// (`HTTP 500`, `status 429`, `status code 401`, `error code 502`,
+// `server error 503`, or a punctuation-bound `code: 401`). Crucially `code`
+// alone is NOT enough — that would still match process-exit lines like `exit
+// code 401`; it only counts when qualified (status/error/response code) or
+// immediately followed by `:`/`=`/`#`. Phrasing per review on #3083.
+const STATUS_CTX =
+  '(?:' +
+  '\\bhttp(?:[ /]?\\d(?:\\.\\d)?)?\\b' + // HTTP, HTTP/1.1
+  '|\\b(?:status|error|response)(?:[ _-]?code)?\\b' + // status / status code / error code / response code
+  '|\\bcode(?=\\s*[:=#])' + // code: 401 / code=429  (NOT "exit code 401")
+  '|\\b(?:server|http)[ _-]?error\\b' + // server error / http error
+  ')[\\s:=#-]*';
 
 // Authentication / authorization: a missing, invalid, or expired credential.
 const AGENT_AUTH_FAILURE_RE = new RegExp(

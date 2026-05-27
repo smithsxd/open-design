@@ -79,4 +79,15 @@ describe('classifyAgentServiceFailure', () => {
       expect(classifyAgentServiceFailure(text)).toBeNull();
     }
   });
+
+  it('does not treat a process exit code as an HTTP status', () => {
+    for (const text of [
+      'exit code 401',
+      'process exited with code 429',
+      'command failed: exit code 503',
+      'child process exited with code 500',
+    ]) {
+      expect(classifyAgentServiceFailure(text)).toBeNull();
+    }
+  });
 });
