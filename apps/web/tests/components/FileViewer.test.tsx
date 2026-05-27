@@ -2071,7 +2071,7 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows element parameters on annotation hover and opens comments on click', async () => {
+  it('opens annotation parameters and comments on click only', async () => {
     render(
       <FileViewer
         projectId="project-1"
@@ -2104,10 +2104,8 @@ describe('FileViewer tweaks toolbar', () => {
       data: { ...target, type: 'od:comment-hover' },
     }));
 
-    const summary = await screen.findByTestId('annotation-hover-style-summary');
-    expect(summary.textContent).toContain('Color');
-    expect(summary.textContent).toContain('#1A1916');
-    expect(summary.textContent).toContain('13.5px');
+    expect(screen.queryByTestId('annotation-hover-style-summary')).toBeNull();
+    expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
     expect(screen.queryByTestId('inspect-panel')).toBeNull();
     expect(screen.queryByTestId('comment-target-overlay')).toBeNull();
     expect(screen.queryByTestId('comment-popover-input')).toBeNull();
@@ -2117,7 +2115,10 @@ describe('FileViewer tweaks toolbar', () => {
       data: { ...target, type: 'od:comment-target' },
     }));
 
-    expect(await screen.findByTestId('comment-popover-style-summary')).toBeTruthy();
+    const summary = await screen.findByTestId('comment-popover-style-summary');
+    expect(summary.textContent).toContain('Color');
+    expect(summary.textContent).toContain('#1A1916');
+    expect(summary.textContent).toContain('13.5px');
     expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
     expect(screen.getByTestId('comment-target-overlay')).toBeTruthy();
     expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('false');

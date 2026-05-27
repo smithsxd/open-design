@@ -98,7 +98,7 @@ import {
   type PreviewCommentSnapshot,
 } from '../comments';
 import { applyPodMemberRemoval } from '../lib/pod-members';
-import { AnnotationHoverPopover, BoardComposerPopover } from './BoardComposerPopover';
+import { BoardComposerPopover } from './BoardComposerPopover';
 import type {
   ChatCommentAttachment,
   PreviewComment,
@@ -6183,10 +6183,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     { x: overlayPreviewTransform.offsetX, y: overlayPreviewTransform.offsetY },
     previewBodySize,
   );
-  const hoveredTargetHasSavedComment = Boolean(
-    hoveredCommentTarget &&
-    visibleSideComments.some((comment) => comment.elementId === hoveredCommentTarget.elementId),
-  );
   useEffect(() => {
     if (!boardMode || !activePreviewCommentId) return;
     const stillOpen = visibleSideComments.some((comment) => comment.id === activePreviewCommentId);
@@ -7093,13 +7089,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 <span aria-hidden="true">📍</span>
                 <span>Return to element</span>
               </button>
-            ) : null}
-            {boardMode && !commentCreateMode && hoveredCommentTarget && !hoveredTargetHasSavedComment && (!activeCommentTarget || commentPortalHost) ? (
-              <AnnotationHoverPopover
-                target={hoveredCommentTarget}
-                scale={overlayPreviewScale}
-                offset={{ x: overlayPreviewTransform.offsetX, y: overlayPreviewTransform.offsetY }}
-              />
             ) : null}
             {commentPortalHost && commentSidePanel
               ? createPortal(commentSidePanel, commentPortalHost)

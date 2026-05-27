@@ -153,9 +153,12 @@ function popoverAnchorStyle(
       };
     }
     return {
-      left: clampPopoverRange(rect.left + overlapOffset, pad, maxLeft),
-      top: clampPopoverRange(rect.top + overlapOffset, pad, maxTop),
-      opacity: 0.72,
+      left: clampPopoverRange(
+        anchorX + pad + width <= viewportWidth - pad ? anchorX + pad : anchorX - width - pad,
+        pad,
+        maxLeft,
+      ),
+      top: clampPopoverRange(anchorY + overlapOffset, pad, maxTop),
     };
   }
   return {
@@ -184,27 +187,6 @@ export function AnnotationStyleSummary({
           </strong>
         </div>
       ))}
-    </div>
-  );
-}
-
-export function AnnotationHoverPopover({
-  target,
-  scale,
-  offset,
-}: {
-  target: PreviewCommentSnapshot;
-  scale: number;
-  offset?: PopoverOffset;
-}) {
-  return (
-    <div
-      className="comment-popover annotation-hover-popover"
-      data-testid="annotation-hover-popover"
-      role="tooltip"
-      style={popoverAnchorStyle(target, scale, undefined, offset)}
-    >
-      <AnnotationStyleSummary target={target} testId="annotation-hover-style-summary" />
     </div>
   );
 }

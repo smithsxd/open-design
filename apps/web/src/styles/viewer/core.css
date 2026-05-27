@@ -1152,9 +1152,6 @@
   border-color: var(--accent-soft);
   color: var(--accent-strong);
 }
-.annotation-hover-popover {
-  pointer-events: none;
-}
 .comment-popover-section {
   min-width: 0;
 }
