@@ -107,113 +107,117 @@ export function ManualEditPanel({
             </button>
           ) : null}
         </div>
-        {targetForInspector ? (
-          <StyleInspector
-            targetKind={targetForInspector.kind}
-            styles={draft.styles}
-            layoutEnabled={targetForInspector.isLayoutContainer}
-            onClearSelection={onClearSelection}
-            onChange={changeTargetStyle}
-          />
-        ) : !targetForInspector ? (
-          <PageInspector
-            enabled={pageStylesEnabled}
-            onStyleChange={(styles) => {
-              const normalized = normalizeManualEditStyles(styles, { layoutEnabled: true });
-              if (!normalized.ok) {
-                onError(normalized.error);
-                onInvalidStyle?.('__body__', Object.keys(styles) as Array<keyof ManualEditStyles>);
-                return;
-              }
-              onError('');
-              onStyleChange?.('__body__', normalized.styles, 'Page styles');
-            }}
-          />
-        ) : null}
+        <div className="manual-edit-scroll">
+          {targetForInspector ? (
+            <StyleInspector
+              targetKind={targetForInspector.kind}
+              styles={draft.styles}
+              layoutEnabled={targetForInspector.isLayoutContainer}
+              onClearSelection={onClearSelection}
+              onChange={changeTargetStyle}
+            />
+          ) : !targetForInspector ? (
+            <PageInspector
+              enabled={pageStylesEnabled}
+              onStyleChange={(styles) => {
+                const normalized = normalizeManualEditStyles(styles, { layoutEnabled: true });
+                if (!normalized.ok) {
+                  onError(normalized.error);
+                  onInvalidStyle?.('__body__', Object.keys(styles) as Array<keyof ManualEditStyles>);
+                  return;
+                }
+                onError('');
+                onStyleChange?.('__body__', normalized.styles, 'Page styles');
+              }}
+            />
+          ) : null}
 
           {targetForInspector?.kind === 'image' && onPickImage ? (
-          <div className="cc-section">
-            <header className="cc-section-head">IMAGE</header>
-            <div className="cc-section-body">
-              <button
-                type="button"
-                className="cc-action-btn"
-                disabled={uploadingImage}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploadingImage ? t('manualEdit.uploadingImage') : t('manualEdit.uploadImage')}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.currentTarget.files?.[0];
-                  if (!file) return;
-                  e.currentTarget.value = '';
-                  setUploadingImage(true);
-                  try {
-                    const src = await onPickImage(file);
-                    if (src) {
-                      const activeTargetId = selectedTargetRef.current?.id ?? targetForInspector.id;
-                      onApplyPatch(
-                        { id: activeTargetId, kind: 'set-image', src, alt: draft.alt },
-                        t('manualEdit.uploadImage'),
-                      );
-                    } else {
-                      onError(t('manualEdit.uploadImageFailed'));
+            <div className="cc-section">
+              <header className="cc-section-head">IMAGE</header>
+              <div className="cc-section-body">
+                <button
+                  type="button"
+                  className="cc-action-btn"
+                  disabled={uploadingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {uploadingImage ? t('manualEdit.uploadingImage') : t('manualEdit.uploadImage')}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.currentTarget.files?.[0];
+                    if (!file) return;
+                    e.currentTarget.value = '';
+                    setUploadingImage(true);
+                    try {
+                      const src = await onPickImage(file);
+                      if (src) {
+                        const activeTargetId = selectedTargetRef.current?.id ?? targetForInspector.id;
+                        onApplyPatch(
+                          { id: activeTargetId, kind: 'set-image', src, alt: draft.alt },
+                          t('manualEdit.uploadImage'),
+                        );
+                      } else {
+                        onError(t('manualEdit.uploadImageFailed'));
+                      }
+                    } finally {
+                      setUploadingImage(false);
                     }
-                  } finally {
-                    setUploadingImage(false);
-                  }
-                }}
-              />
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
-        {targetForInspector ? (
-          <div className="cc-section">
-            <div className="cc-section-body">
-              {confirmDelete ? (
-                <>
-                  <p className="cc-delete-confirm">{canUndo ? t('manualEdit.deleteElementConfirm') : t('manualEdit.deleteElement')}</p>
+        <div className="manual-edit-footer">
+          {targetForInspector ? (
+            <div className="cc-section">
+              <div className="cc-section-body">
+                {confirmDelete ? (
+                  <>
+                    <p className="cc-delete-confirm">{canUndo ? t('manualEdit.deleteElementConfirm') : t('manualEdit.deleteElement')}</p>
+                    <button
+                      type="button"
+                      className="cc-action-btn cc-action-danger"
+                      onClick={() => {
+                        setConfirmDelete(false);
+                        onApplyPatch(
+                          { id: targetForInspector.id, kind: 'remove-element' },
+                          t('manualEdit.deleteElement'),
+                        );
+                      }}
+                    >
+                      {t('manualEdit.deleteElement')}
+                    </button>
+                    <button
+                      type="button"
+                      className="cc-action-btn"
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     className="cc-action-btn cc-action-danger"
-                    onClick={() => {
-                      setConfirmDelete(false);
-                      onApplyPatch(
-                        { id: targetForInspector.id, kind: 'remove-element' },
-                        t('manualEdit.deleteElement'),
-                      );
-                    }}
+                    onClick={() => setConfirmDelete(true)}
                   >
                     {t('manualEdit.deleteElement')}
                   </button>
-                  <button
-                    type="button"
-                    className="cc-action-btn"
-                    onClick={() => setConfirmDelete(false)}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="cc-action-btn cc-action-danger"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  {t('manualEdit.deleteElement')}
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {error ? <div className="manual-edit-error">{error}</div> : null}
+          {error ? <div className="manual-edit-error">{error}</div> : null}
+        </div>
       </section>
     </aside>
   );

@@ -73,6 +73,19 @@ describe('ManualEditPanel', () => {
     expect(onClearSelection).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps inspector controls scrollable separately from footer actions', () => {
+    renderPanel();
+
+    const scrollRegion = host.querySelector('.manual-edit-scroll');
+    const footer = host.querySelector('.manual-edit-footer');
+    const deleteButton = Array.from(host.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Delete element');
+
+    expect(scrollRegion?.textContent).toContain('TYPOGRAPHY');
+    expect(scrollRegion?.contains(deleteButton ?? null)).toBe(false);
+    expect(footer?.contains(deleteButton ?? null)).toBe(true);
+  });
+
   it('normalizes font stacks and writes a usable font-family value', () => {
     const onDraftChange = vi.fn();
     const onStyleChange = vi.fn();

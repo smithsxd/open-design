@@ -597,10 +597,11 @@ function manualEditFloatingPanelStyle(
 ): CSSProperties {
   const scale = Number.isFinite(previewScale) && previewScale > 0 ? previewScale : 1;
   const panelWidth = 320;
-  const panelHeight = target.kind === 'text' || target.kind === 'link' ? 280 : 520;
+  const preferredPanelHeight = 560;
   const pad = 12;
   const canvasWidth = canvasSize?.width ?? 1200;
   const canvasHeight = canvasSize?.height ?? 800;
+  const panelHeight = Math.min(preferredPanelHeight, Math.max(260, canvasHeight - pad * 2));
   const targetLeft = target.rect.x * scale;
   const targetTop = target.rect.y * scale;
   const targetRight = (target.rect.x + target.rect.width) * scale;
@@ -616,7 +617,8 @@ function manualEditFloatingPanelStyle(
     left,
     top,
     width: panelWidth,
-    maxHeight: `min(${panelHeight}px, calc(100% - ${pad * 2}px))`,
+    height: panelHeight,
+    maxHeight: `calc(100% - ${pad * 2}px)`,
   };
 }
 
