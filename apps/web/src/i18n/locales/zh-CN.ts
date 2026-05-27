@@ -232,7 +232,7 @@ export const zhCN: Dict = {
   'settings.amrLoginErrorCompact': 'AMR 登录失败。',
   'settings.advanced': '高级设置',
   'settings.amrLogin': '登录',
-  'settings.amrLogout': '退出登录',
+  'settings.amrLogout': '登出',
   'settings.amrLoggingIn': '登录中…',
   'settings.amrLoggingOut': '退出中…',
   'settings.amrLoggedInAs': '已登录 {email}',

@@ -28,6 +28,10 @@ import type { Locale } from '../i18n';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AmrLoginPill } from './AmrLoginPill';
+import {
+  fetchVelaLoginStatus,
+  type VelaLoginStatus,
+} from '../providers/daemon';
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import {
@@ -853,9 +857,31 @@ export function SettingsDialog({
   const [agentTestState, setAgentTestState] = useState<TestState>({
     status: 'idle',
   });
+  const [amrCardStatus, setAmrCardStatus] = useState<VelaLoginStatus | null>(null);
+  const [amrCardStatusReady, setAmrCardStatusReady] = useState(false);
   const [providerTestState, setProviderTestState] = useState<TestState>({
     status: 'idle',
   });
+
+  useEffect(() => {
+    const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
+    if (!hasAmrAgent) {
+      setAmrCardStatus(null);
+      setAmrCardStatusReady(false);
+      return;
+    }
+    let cancelled = false;
+    setAmrCardStatusReady(false);
+    void fetchVelaLoginStatus().then((next) => {
+      if (!cancelled) {
+        setAmrCardStatus(next);
+        setAmrCardStatusReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [agents]);
   const [byokPreconditionNotice, setByokPreconditionNotice] = useState<{
     action: ByokPreconditionAction;
     message: string;
@@ -1950,10 +1976,14 @@ export function SettingsDialog({
     fallback: string,
   ) => {
     if (!model) return fallback;
-    if (model.label && model.label !== model.id) {
-      return `${model.label} (${model.id})`;
+    const label = model.label?.trim();
+    const id = model.id.trim();
+    if (label && label !== id) {
+      return label.toLowerCase().includes(id.toLowerCase())
+        ? label
+        : `${label} (${id})`;
     }
-    return model.label || model.id;
+    return label || id;
   };
   const agentModelSummary = (agent: AgentInfo) => {
     if (!Array.isArray(agent.models) || agent.models.length === 0) return null;
@@ -2554,6 +2584,10 @@ export function SettingsDialog({
                             a.authStatus === 'unknown'
                               ? (a.authMessage ?? a.path ?? '')
                               : (a.path ?? '');
+                          const amrCardEmail =
+                            isAmrAgent && active && amrCardStatus?.loggedIn
+                              ? amrCardStatus.user?.email || t('settings.amrSignedIn')
+                              : '';
                           const cardEl = (
                             <div
                               key={a.id}
@@ -2604,9 +2638,6 @@ export function SettingsDialog({
                                                 {benefit}
                                               </span>
                                             ))}
-                                            <span className="agent-card-promo">
-                                              {t('settings.amrPromoBonus')}
-                                            </span>
                                           </span>
                                         ) : description ? (
                                           <>
@@ -2629,6 +2660,13 @@ export function SettingsDialog({
                                           </span>
                                         </div>
                                       ) : null}
+                                      {amrCardEmail ? (
+                                        <div className="agent-card-amr-email">
+                                          <span title={amrCardEmail}>
+                                            {amrCardEmail}
+                                          </span>
+                                        </div>
+                                      ) : null}
                                       {!active && modelSummary ? (
                                         <div className="agent-card-model-summary">
                                           <span>{t('settings.modelPicker')}</span>
@@ -2637,12 +2675,23 @@ export function SettingsDialog({
                                       ) : null}
                                   </div>
                                 </button>
-                                {isAmrAgent && active ? (
-                                  <AmrLoginPill
-                                    className="agent-card-amr-auth"
-                                    hideSignedOutStatus
-                                    signInLabel={t('settings.amrAuthorize')}
-                                  />
+                                {isAmrAgent ? (
+                                  active && amrCardStatusReady ? (
+                                    <AmrLoginPill
+                                      className="agent-card-amr-auth"
+                                      hideSignedOutStatus
+                                      hideSignedInStatus
+                                      initialStatus={amrCardStatus}
+                                      skipInitialRefresh
+                                      signInLabel={t('settings.amrAuthorize')}
+                                      onStatusChange={setAmrCardStatus}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="agent-card-amr-auth agent-card-amr-auth--placeholder"
+                                      aria-hidden="true"
+                                    />
+                                  )
                                 ) : null}
                                 {active && !isAmrAgent ? (
                                   <button

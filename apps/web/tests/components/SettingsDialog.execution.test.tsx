@@ -1423,10 +1423,10 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/AMR \(vela\)/i)).toBeNull();
     expect(screen.queryByText(/vela/i)).toBeNull();
     expect(screen.queryByText(/Not signed in/i)).toBeNull();
-    expect(screen.getByText('Officially maintained')).toBeTruthy();
-    expect(screen.getByText('Lower price')).toBeTruthy();
+    expect(screen.getByText('Official')).toBeTruthy();
+    expect(screen.getByText('Lower cost')).toBeTruthy();
     expect(screen.getByText('Many models')).toBeTruthy();
-    expect(screen.getByText('Limited bonus: +100%')).toBeTruthy();
+    expect(screen.queryByText('Limited bonus: +100%')).toBeNull();
     expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
   });

@@ -19,7 +19,11 @@ import {
 interface AmrLoginPillProps {
   className?: string;
   hideSignedOutStatus?: boolean;
+  hideSignedInStatus?: boolean;
+  initialStatus?: VelaLoginStatus | null;
+  skipInitialRefresh?: boolean;
   signInLabel?: string;
+  onStatusChange?: (status: VelaLoginStatus | null) => void;
 }
 
 export type AmrAccountControlStatus =
@@ -38,6 +42,7 @@ export interface AmrAccountControlProps {
   showProfileBadge?: boolean;
   showSignInAction?: boolean;
   hideSignedOutStatus?: boolean;
+  hideSignedInStatus?: boolean;
   signInLabel?: string;
   onSignIn?: (event: MouseEvent<HTMLButtonElement>) => void;
   onSignOut?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -64,6 +69,7 @@ export function AmrAccountControl({
   showProfileBadge = false,
   showSignInAction = true,
   hideSignedOutStatus = false,
+  hideSignedInStatus = false,
   signInLabel,
   onSignIn,
   onSignOut,
@@ -76,7 +82,9 @@ export function AmrAccountControl({
   const isSigningIn = status === 'signing-in';
   const hasError = status === 'error';
   const statusText = isSignedIn
-    ? email || t('settings.amrSignedIn')
+    ? hideSignedInStatus
+      ? ''
+      : email || t('settings.amrSignedIn')
     : isSigningIn
       ? t('settings.amrSigningIn')
       : hideSignedOutStatus
@@ -138,10 +146,14 @@ export function AmrAccountControl({
 export function AmrLoginPill({
   className,
   hideSignedOutStatus = false,
+  hideSignedInStatus = false,
+  initialStatus = null,
+  skipInitialRefresh = false,
   signInLabel,
+  onStatusChange,
 }: AmrLoginPillProps) {
   const { t } = useI18n();
-  const [status, setStatus] = useState<VelaLoginStatus | null>(null);
+  const [status, setStatus] = useState<VelaLoginStatus | null>(initialStatus);
   const [pending, setPending] = useState<null | 'login' | 'logout'>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -162,13 +174,21 @@ export function AmrLoginPill({
   }, []);
 
   useEffect(() => {
-    void refresh();
+    if (!skipInitialRefresh) void refresh();
     return () => {
       loginPendingRef.current = false;
       loginStartedAtRef.current = null;
       stopPolling();
     };
-  }, [refresh, stopPolling]);
+  }, [refresh, skipInitialRefresh, stopPolling]);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [onStatusChange, status]);
 
   const startPolling = useCallback((startedAt = Date.now()) => {
     stopPolling();
@@ -316,6 +336,7 @@ export function AmrLoginPill({
         profile={status?.profile}
         showProfileBadge
         hideSignedOutStatus={hideSignedOutStatus}
+        hideSignedInStatus={hideSignedInStatus}
         signInLabel={signInLabel}
         signInDisabled={loginInFlight}
         signOutDisabled={logoutInFlight}

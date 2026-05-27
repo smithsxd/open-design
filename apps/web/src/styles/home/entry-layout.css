@@ -1805,6 +1805,12 @@
     );
 }
 
+.onboarding-view__card--featured:not(.is-selected) {
+  border-color: var(--border);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-xs);
+}
+
 .onboarding-view__card:hover {
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   background: color-mix(in srgb, var(--bg-panel) 97%, var(--accent) 3%);
