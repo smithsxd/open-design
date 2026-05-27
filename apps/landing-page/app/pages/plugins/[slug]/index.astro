@@ -81,7 +81,7 @@ const jsonLd = [
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Open Design', item: Astro.site?.toString() },
-      { '@type': 'ListItem', position: 2, name: 'Plugins', item: new URL('/plugins/', Astro.site).toString() },
+      { '@type': 'ListItem', position: 2, name: pcopy.hubLabel, item: new URL('/plugins/', Astro.site).toString() },
       { '@type': 'ListItem', position: 3, name: pluginTitle, item: new URL(plugin.detailHref, Astro.site).toString() },
     ],
   },
@@ -99,7 +99,7 @@ const jsonLd = [
 ---
 
 <Layout title={title} description={description} active="plugins" jsonLd={jsonLd}>
-  <nav class="breadcrumb" aria-label="Breadcrumb">
+  <nav class="breadcrumb" aria-label={pcopy.breadcrumbLabel}>
     <a href={href('/')}>Open Design</a>
     <span>/</span>
     <a href={href('/plugins/')}>{pcopy.hubLabel}</a>
@@ -171,12 +171,12 @@ const jsonLd = [
           <details class="detail-preview-live">
             <summary
               class="detail-preview-thumb-trigger"
-              aria-label={`Open interactive preview for ${pluginTitle}`}
+              aria-label={pcopy.previewSummaryAria(pluginTitle)}
             >
               <img
                 class="detail-preview-static"
                 src={plugin.previewPoster}
-                alt={`${pluginTitle} preview`}
+                alt={pcopy.previewImageAlt(pluginTitle)}
                 loading="eager"
                 fetchpriority="high"
               />
@@ -187,7 +187,7 @@ const jsonLd = [
             <div class="detail-preview-frame-wrap">
               <iframe
                 src={plugin.previewEntryUrl}
-                title={`${pluginTitle} interactive preview`}
+                title={pcopy.previewIframeTitle(pluginTitle)}
                 loading="lazy"
                 sandbox="allow-scripts allow-same-origin"
                 class="detail-preview-frame"
@@ -197,7 +197,7 @@ const jsonLd = [
                 href={plugin.previewEntryUrl}
                 target="_blank"
                 rel="noopener"
-                aria-label={pcopy.detailOpenInNewTab}
+                aria-label={pcopy.detailOpenInNewTabAria}
               >
                 {pcopy.detailOpenInNewTab}
               </a>
@@ -207,7 +207,7 @@ const jsonLd = [
           <img
             class="detail-preview-static"
             src={plugin.previewPoster}
-            alt={`${pluginTitle} preview`}
+            alt={pcopy.previewImageAlt(pluginTitle)}
             loading="eager"
             fetchpriority="high"
           />
@@ -234,7 +234,7 @@ const jsonLd = [
           <button
             type="submit"
             class="detail-share-dialog-close"
-            aria-label="Close"
+            aria-label={pcopy.shareDialogClose}
             value="cancel"
           >×</button>
         </header>

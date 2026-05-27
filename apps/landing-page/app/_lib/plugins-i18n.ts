@@ -94,11 +94,29 @@ export interface PluginsCopy {
   detailTags: string;
   detailPreviewCaption: string;
   detailClickForLivePreview: string;  // "Click for live preview ↗"
-  detailOpenInNewTab: string;          // "Open in new tab ↗"
+  detailOpenInNewTab: string;          // "Open in new tab ↗" (visible label)
+  /**
+   * Accessible-name variant of {@link detailOpenInNewTab}: same meaning, no
+   * decorative `↗` glyph. Splitting the keys keeps screen readers from
+   * announcing the arrow as part of the control's name while the visible
+   * label keeps the visual cue. (Reviewer flag: `aria-label` should not
+   * embed decorative typography.)
+   */
+  detailOpenInNewTabAria: string;
   detailBucketLabel: Record<
     'examples' | 'image-templates' | 'video-templates' | 'scenarios' | 'design-systems' | 'atoms',
     string
   >;
+
+  // A11y strings used as `aria-label` / `alt` / `<iframe title>` on the
+  // detail page. Anything that takes the plugin's localized title is a
+  // function so the surrounding sentence frame stays in the page locale
+  // even when the catalog row's English fallback fires.
+  breadcrumbLabel: string;            // <nav aria-label>
+  shareDialogClose: string;           // share dialog × button
+  previewImageAlt: (title: string) => string;       // <img alt>
+  previewSummaryAria: (title: string) => string;    // <summary aria-label>
+  previewIframeTitle: (title: string) => string;    // <iframe title>
 
   // Share dialog
   shareOpen: string;
@@ -235,6 +253,7 @@ const en: PluginsCopy = {
   detailPreviewCaption: 'Preview from the bundled-plugin manifest.',
   detailClickForLivePreview: 'Click for live preview ↗',
   detailOpenInNewTab: 'Open in new tab ↗',
+  detailOpenInNewTabAria: 'Open in new tab',
   detailBucketLabel: {
     examples: 'Example',
     'image-templates': 'Image template',
@@ -243,6 +262,12 @@ const en: PluginsCopy = {
     'design-systems': 'Design system',
     atoms: 'Atom',
   },
+
+  breadcrumbLabel: 'Breadcrumb',
+  shareDialogClose: 'Close',
+  previewImageAlt: (title) => `${title} preview`,
+  previewSummaryAria: (title) => `Open interactive preview for ${title}`,
+  previewIframeTitle: (title) => `${title} interactive preview`,
 
   shareOpen: 'Share ↗',
   shareTitle: 'Share this plugin',
@@ -328,6 +353,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     shareLead: '复制下面的文案，然后跳到你想分享的平台粘贴即可。',
     shareCopyText: '复制文案', shareCopyLink: '只复制链接', shareJumpTo: '跳转到：',
     shareTemplate: ({ title, url }) => `🎨 安利一个：@opendesignai 上的 ${title} —— Claude Design 的开源替代品。\n✨ 本地优先 · 自带模型 · 让你自己的 agent 做设计。\n\n→ ${url}`,
+    detailOpenInNewTabAria: '在新标签打开',
+    breadcrumbLabel: '面包屑导航',
+    shareDialogClose: '关闭',
+    previewImageAlt: (title) => `${title} 预览`,
+    previewSummaryAria: (title) => `打开 ${title} 的互动预览`,
+    previewIframeTitle: (title) => `${title} 互动预览`,
   },
   'zh-tw': {
     hubLabel: '外掛庫', hubHeading: (n) => `${n} 個可組合的元件。`,
@@ -367,6 +398,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: '標籤',
     detailPreviewCaption: '來自 bundled-plugin manifest 的預覽。',
     detailBucketLabel: { examples: '範例', 'image-templates': '影像模板', 'video-templates': '影片模板', scenarios: '場景', 'design-systems': '設計系統', atoms: 'Atom' },
+    detailOpenInNewTabAria: '在新分頁開啟',
+    breadcrumbLabel: '麵包屑導覽',
+    shareDialogClose: '關閉',
+    previewImageAlt: (title) => `${title} 預覽`,
+    previewSummaryAria: (title) => `開啟 ${title} 的互動預覽`,
+    previewIframeTitle: (title) => `${title} 互動預覽`,
   },
   ja: {
     hubLabel: 'プラグインライブラリ', hubHeading: (n) => `${n} 個の組み合わせ可能なパーツ。`,
@@ -406,6 +443,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'タグ',
     detailPreviewCaption: 'bundled-plugin manifest からのプレビュー。',
     detailBucketLabel: { examples: 'サンプル', 'image-templates': '画像テンプレート', 'video-templates': '動画テンプレート', scenarios: 'シーン', 'design-systems': 'デザインシステム', atoms: 'Atom' },
+    detailOpenInNewTabAria: '新しいタブで開く',
+    breadcrumbLabel: 'パンくずリスト',
+    shareDialogClose: '閉じる',
+    previewImageAlt: (title) => `${title} のプレビュー`,
+    previewSummaryAria: (title) => `${title} のインタラクティブプレビューを開く`,
+    previewIframeTitle: (title) => `${title} のインタラクティブプレビュー`,
   },
   ko: {
     hubLabel: '플러그인 라이브러리', hubHeading: (n) => `${n}개의 조합 가능한 구성요소.`,
@@ -445,6 +488,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: '태그',
     detailPreviewCaption: 'bundled-plugin manifest에서 가져온 프리뷰.',
     detailBucketLabel: { examples: '예시', 'image-templates': '이미지 템플릿', 'video-templates': '비디오 템플릿', scenarios: '장면', 'design-systems': '디자인 시스템', atoms: 'Atom' },
+    detailOpenInNewTabAria: '새 탭에서 열기',
+    breadcrumbLabel: '경로 탐색',
+    shareDialogClose: '닫기',
+    previewImageAlt: (title) => `${title} 프리뷰`,
+    previewSummaryAria: (title) => `${title} 인터랙티브 프리뷰 열기`,
+    previewIframeTitle: (title) => `${title} 인터랙티브 프리뷰`,
   },
   de: {
     hubLabel: 'Plugin-Bibliothek', hubHeading: (n) => `${n} kombinierbare Bausteine.`,
@@ -484,6 +533,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tags',
     detailPreviewCaption: 'Vorschau aus dem bundled-plugin Manifest.',
     detailBucketLabel: { examples: 'Beispiel', 'image-templates': 'Bild-Template', 'video-templates': 'Video-Template', scenarios: 'Szene', 'design-systems': 'Designsystem', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'In neuem Tab öffnen',
+    breadcrumbLabel: 'Brotkrumen-Navigation',
+    shareDialogClose: 'Schließen',
+    previewImageAlt: (title) => `${title} Vorschau`,
+    previewSummaryAria: (title) => `Interaktive Vorschau für ${title} öffnen`,
+    previewIframeTitle: (title) => `${title} Interaktive Vorschau`,
   },
   fr: {
     hubLabel: 'Bibliothèque de plugins', hubHeading: (n) => `${n} éléments composables.`,
@@ -523,6 +578,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tags',
     detailPreviewCaption: 'Preview depuis le manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Exemple', 'image-templates': 'Template image', 'video-templates': 'Template vidéo', scenarios: 'Scène', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Ouvrir dans un nouvel onglet',
+    breadcrumbLabel: 'Fil d’Ariane',
+    shareDialogClose: 'Fermer',
+    previewImageAlt: (title) => `Aperçu de ${title}`,
+    previewSummaryAria: (title) => `Ouvrir l’aperçu interactif de ${title}`,
+    previewIframeTitle: (title) => `Aperçu interactif de ${title}`,
   },
   ru: {
     hubLabel: 'Библиотека плагинов', hubHeading: (n) => `${n} компонуемых элементов.`,
@@ -562,6 +623,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Теги',
     detailPreviewCaption: 'Превью из bundled-plugin манифеста.',
     detailBucketLabel: { examples: 'Пример', 'image-templates': 'Шаблон изображения', 'video-templates': 'Шаблон видео', scenarios: 'Сцена', 'design-systems': 'Дизайн-система', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Открыть в новой вкладке',
+    breadcrumbLabel: 'Навигация по разделам',
+    shareDialogClose: 'Закрыть',
+    previewImageAlt: (title) => `Превью ${title}`,
+    previewSummaryAria: (title) => `Открыть интерактивное превью ${title}`,
+    previewIframeTitle: (title) => `Интерактивное превью ${title}`,
   },
   es: {
     hubLabel: 'Biblioteca de plugins', hubHeading: (n) => `${n} piezas componibles.`,
@@ -601,6 +668,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Etiquetas',
     detailPreviewCaption: 'Preview del manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Ejemplo', 'image-templates': 'Template de imagen', 'video-templates': 'Template de video', scenarios: 'Escena', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Abrir en nueva pestaña',
+    breadcrumbLabel: 'Ruta de navegación',
+    shareDialogClose: 'Cerrar',
+    previewImageAlt: (title) => `Vista previa de ${title}`,
+    previewSummaryAria: (title) => `Abrir vista previa interactiva de ${title}`,
+    previewIframeTitle: (title) => `Vista previa interactiva de ${title}`,
   },
   'pt-br': {
     hubLabel: 'Biblioteca de plugins', hubHeading: (n) => `${n} peças combináveis.`,
@@ -640,6 +713,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tags',
     detailPreviewCaption: 'Preview do manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Exemplo', 'image-templates': 'Template de imagem', 'video-templates': 'Template de vídeo', scenarios: 'Cena', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Abrir em nova aba',
+    breadcrumbLabel: 'Trilha de navegação',
+    shareDialogClose: 'Fechar',
+    previewImageAlt: (title) => `Pré-visualização de ${title}`,
+    previewSummaryAria: (title) => `Abrir pré-visualização interativa de ${title}`,
+    previewIframeTitle: (title) => `Pré-visualização interativa de ${title}`,
   },
   it: {
     hubLabel: 'Libreria plugin', hubHeading: (n) => `${n} pezzi componibili.`,
@@ -679,6 +758,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tag',
     detailPreviewCaption: 'Preview dal manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Esempio', 'image-templates': 'Template immagine', 'video-templates': 'Template video', scenarios: 'Scena', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Apri in una nuova scheda',
+    breadcrumbLabel: 'Percorso di navigazione',
+    shareDialogClose: 'Chiudi',
+    previewImageAlt: (title) => `Anteprima di ${title}`,
+    previewSummaryAria: (title) => `Apri anteprima interattiva di ${title}`,
+    previewIframeTitle: (title) => `Anteprima interattiva di ${title}`,
   },
   id: {
     hubLabel: 'Pustaka plugin', hubHeading: (n) => `${n} potongan yang bisa digabungkan.`,
@@ -718,6 +803,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tag',
     detailPreviewCaption: 'Preview dari manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Contoh', 'image-templates': 'Template gambar', 'video-templates': 'Template video', scenarios: 'Adegan', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Buka di tab baru',
+    breadcrumbLabel: 'Navigasi breadcrumb',
+    shareDialogClose: 'Tutup',
+    previewImageAlt: (title) => `Pratinjau ${title}`,
+    previewSummaryAria: (title) => `Buka pratinjau interaktif ${title}`,
+    previewIframeTitle: (title) => `Pratinjau interaktif ${title}`,
   },
   pl: {
     hubLabel: 'Biblioteka pluginów', hubHeading: (n) => `${n} komponowalnych elementów.`,
@@ -757,6 +848,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tagi',
     detailPreviewCaption: 'Podgląd z manifestu bundled-plugin.',
     detailBucketLabel: { examples: 'Przykład', 'image-templates': 'Szablon obrazu', 'video-templates': 'Szablon wideo', scenarios: 'Scena', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Otwórz w nowej karcie',
+    breadcrumbLabel: 'Ścieżka nawigacyjna',
+    shareDialogClose: 'Zamknij',
+    previewImageAlt: (title) => `Podgląd ${title}`,
+    previewSummaryAria: (title) => `Otwórz interaktywny podgląd ${title}`,
+    previewIframeTitle: (title) => `Interaktywny podgląd ${title}`,
   },
   ar: {
     hubLabel: 'مكتبة الإضافات', hubHeading: (n) => `${n} قطعة قابلة للتركيب.`,
@@ -796,6 +893,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'الوسوم',
     detailPreviewCaption: 'معاينة من bundled-plugin manifest.',
     detailBucketLabel: { examples: 'مثال', 'image-templates': 'قالب صور', 'video-templates': 'قالب فيديو', scenarios: 'مشهد', 'design-systems': 'نظام تصميم', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'فتح في علامة تبويب جديدة',
+    breadcrumbLabel: 'مسار التنقل',
+    shareDialogClose: 'إغلاق',
+    previewImageAlt: (title) => `معاينة ${title}`,
+    previewSummaryAria: (title) => `فتح المعاينة التفاعلية لـ ${title}`,
+    previewIframeTitle: (title) => `المعاينة التفاعلية لـ ${title}`,
   },
   tr: {
     hubLabel: 'Eklenti kütüphanesi', hubHeading: (n) => `${n} birleştirilebilir parça.`,
@@ -835,6 +938,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Etiketler',
     detailPreviewCaption: 'bundled-plugin manifest’ten önizleme.',
     detailBucketLabel: { examples: 'Örnek', 'image-templates': 'Görsel şablon', 'video-templates': 'Video şablon', scenarios: 'Sahne', 'design-systems': 'Tasarım sistemi', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Yeni sekmede aç',
+    breadcrumbLabel: 'İçerik haritası',
+    shareDialogClose: 'Kapat',
+    previewImageAlt: (title) => `${title} önizlemesi`,
+    previewSummaryAria: (title) => `${title} için etkileşimli önizlemeyi aç`,
+    previewIframeTitle: (title) => `${title} etkileşimli önizleme`,
   },
   uk: {
     hubLabel: 'Бібліотека плагінів', hubHeading: (n) => `${n} компонованих елементів.`,
@@ -874,6 +983,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Теги',
     detailPreviewCaption: 'Прев’ю з bundled-plugin маніфесту.',
     detailBucketLabel: { examples: 'Приклад', 'image-templates': 'Шаблон зображення', 'video-templates': 'Шаблон відео', scenarios: 'Сцена', 'design-systems': 'Дизайн-система', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Відкрити в новій вкладці',
+    breadcrumbLabel: 'Навігаційна стежка',
+    shareDialogClose: 'Закрити',
+    previewImageAlt: (title) => `Прев’ю ${title}`,
+    previewSummaryAria: (title) => `Відкрити інтерактивне прев’ю ${title}`,
+    previewIframeTitle: (title) => `Інтерактивне прев’ю ${title}`,
   },
   vi: {
     hubLabel: 'Thư viện plugin', hubHeading: (n) => `${n} thành phần có thể ghép nối.`,
@@ -913,6 +1028,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Thẻ',
     detailPreviewCaption: 'Preview từ manifest bundled-plugin.',
     detailBucketLabel: { examples: 'Ví dụ', 'image-templates': 'Template ảnh', 'video-templates': 'Template video', scenarios: 'Cảnh', 'design-systems': 'Design system', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Mở trong tab mới',
+    breadcrumbLabel: 'Đường dẫn',
+    shareDialogClose: 'Đóng',
+    previewImageAlt: (title) => `Xem trước ${title}`,
+    previewSummaryAria: (title) => `Mở xem trước tương tác của ${title}`,
+    previewIframeTitle: (title) => `Xem trước tương tác của ${title}`,
   },
   nl: {
     hubLabel: 'Plugin-bibliotheek', hubHeading: (n) => `${n} combineerbare onderdelen.`,
@@ -952,6 +1073,12 @@ const overrides: Partial<Record<LandingLocaleCode, Partial<PluginsCopy>>> = {
     detailTags: 'Tags',
     detailPreviewCaption: 'Preview uit het bundled-plugin-manifest.',
     detailBucketLabel: { examples: 'Voorbeeld', 'image-templates': 'Beeld-template', 'video-templates': 'Video-template', scenarios: 'Scène', 'design-systems': 'Designsysteem', atoms: 'Atom' },
+    detailOpenInNewTabAria: 'Openen in nieuw tabblad',
+    breadcrumbLabel: 'Kruimelpad',
+    shareDialogClose: 'Sluiten',
+    previewImageAlt: (title) => `Voorvertoning van ${title}`,
+    previewSummaryAria: (title) => `Interactieve voorvertoning van ${title} openen`,
+    previewIframeTitle: (title) => `Interactieve voorvertoning van ${title}`,
   },
 };
 
