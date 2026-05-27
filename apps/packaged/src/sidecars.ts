@@ -24,7 +24,7 @@ import {
 import {
   createProcessStampArgs,
   mergeProxyAwareEnv,
-  resolveSystemProxyEnvCached,
+  resolveSystemProxyEnv,
   stopProcesses,
   waitForProcessExit,
   wellKnownUserToolchainBins,
@@ -215,7 +215,7 @@ export function resolvePackagedPathEnv(basePath = process.env.PATH ?? ""): strin
 export function resolvePackagedChildBaseEnv(
   env: NodeJS.ProcessEnv = process.env,
   includeProviderSecrets = false,
-  systemProxyEnv: NodeJS.ProcessEnv = resolveSystemProxyEnvCached(),
+  systemProxyEnv: NodeJS.ProcessEnv = resolveSystemProxyEnv(),
   includeSystemProxyEnv = true,
 ): NodeJS.ProcessEnv {
   const forwardedEnv: NodeJS.ProcessEnv = {};
@@ -339,7 +339,7 @@ async function spawnSidecarChild(options: {
       ...resolvePackagedChildBaseEnv(
         process.env,
         options.app === APP_KEYS.DAEMON,
-        resolveSystemProxyEnvCached(),
+        resolveSystemProxyEnv(),
         options.app !== APP_KEYS.DAEMON,
       ),
       ...options.env,

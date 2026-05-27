@@ -369,16 +369,6 @@ export function resolveSystemProxyEnv(options: {
   return {};
 }
 
-export function resolveSystemProxyEnvCached(options: {
-  platform?: NodeJS.Platform;
-  refresh?: boolean;
-  runCommand?: SystemProxyCommandRunner;
-} = {}): NodeJS.ProcessEnv {
-  const { refresh: _refresh, ...resolveOptions } = options;
-  void _refresh;
-  return resolveSystemProxyEnv(resolveOptions);
-}
-
 export function createProcessStampArgs<TStamp extends ProcessStampShape>(
   stamp: TStamp,
   contract: ProcessStampContract<TStamp>,

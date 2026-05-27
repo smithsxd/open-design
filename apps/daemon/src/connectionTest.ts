@@ -21,13 +21,18 @@ import { promises as dnsPromises } from 'node:dns';
 import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { EnvHttpProxyAgent } from 'undici';
 import {
   applyAgentLaunchEnv,
   getAgentDef,
   resolveAgentLaunch,
   spawnEnvForAgent,
 } from './agents.js';
-import { createCommandInvocation } from '@open-design/platform';
+import {
+  createCommandInvocation,
+  mergeProxyAwareEnv,
+  resolveSystemProxyEnv,
+} from '@open-design/platform';
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
@@ -210,6 +215,43 @@ function agentTimeoutMs(): number {
     DEFAULT_AGENT_TIMEOUT_MS,
   );
 }
+
+function buildConnectionTestProxyDispatcher(
+  env: NodeJS.ProcessEnv = process.env,
+): EnvHttpProxyAgent | null {
+  const proxyEnv = mergeProxyAwareEnv(process.platform, resolveSystemProxyEnv(), env);
+  const httpProxy = proxyEnv.HTTP_PROXY ?? proxyEnv.http_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
+  const httpsProxy = proxyEnv.HTTPS_PROXY ?? proxyEnv.https_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
+  const noProxy = proxyEnv.NO_PROXY ?? proxyEnv.no_proxy;
+  if (!httpProxy && !httpsProxy) return null;
+  return new EnvHttpProxyAgent({
+    ...(httpProxy ? { httpProxy } : {}),
+    ...(httpsProxy ? { httpsProxy } : {}),
+    ...(noProxy ? { noProxy } : {}),
+  });
+}
+
+function proxyDispatcherRequestInit(
+  env: NodeJS.ProcessEnv = process.env,
+): {
+  close(): Promise<void>;
+  requestInit: Pick<RequestInit, 'dispatcher'>;
+} {
+  const dispatcher = buildConnectionTestProxyDispatcher(env);
+  if (dispatcher == null) {
+    return {
+      async close() {},
+      requestInit: {},
+    };
+  }
+  return {
+    close: () => dispatcher.close(),
+    requestInit: {
+      dispatcher: dispatcher as unknown as NonNullable<RequestInit['dispatcher']>,
+    },
+  };
+}
+
 const AGENT_COMPLETION_DEBOUNCE_MS = 500;
 const AGENT_KILL_GRACE_MS = 2_000;
 // Truncates the assistant reply we surface in the success copy so a
@@ -478,6 +520,7 @@ async function validateLocalOpenAiModel(
   parsed: ParsedBaseUrl,
   signal: AbortSignal,
   start: number,
+  requestInit: Pick<RequestInit, 'dispatcher'> = {},
 ): Promise<ConnectionTestResponse | null> {
   if (input.protocol !== 'openai' || !isLoopbackApiHost(parsed.hostname)) {
     return null;
@@ -487,6 +530,7 @@ async function validateLocalOpenAiModel(
   let response: Response;
   try {
     response = await fetch(url, {
+      ...requestInit,
       method: 'GET',
       headers: { authorization: `Bearer ${String(input.apiKey)}` },
       signal,
@@ -731,6 +775,7 @@ export async function testProviderConnection(
     input.signal?.addEventListener('abort', abortFromParent, { once: true });
   }
   const timer = setTimeout(() => controller.abort(), providerTimeoutMs());
+  const proxyDispatcher = proxyDispatcherRequestInit();
 
   try {
     const modelError = await validateLocalOpenAiModel(
@@ -738,10 +783,12 @@ export async function testProviderConnection(
       validated.parsed,
       controller.signal,
       start,
+      proxyDispatcher.requestInit,
     );
     if (modelError) return modelError;
 
     const requestInit = {
+      ...proxyDispatcher.requestInit,
       method: 'POST',
       headers: call.headers,
       signal: controller.signal,
@@ -938,6 +985,7 @@ export async function testProviderConnection(
   } finally {
     clearTimeout(timer);
     input.signal?.removeEventListener('abort', abortFromParent);
+    await proxyDispatcher.close();
   }
 }
 

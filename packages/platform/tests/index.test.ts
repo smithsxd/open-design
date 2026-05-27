@@ -16,7 +16,6 @@ import {
   pathContains,
   readProcessStampFromCommand,
   removePathBestEffort,
-  resolveSystemProxyEnvCached,
   resolveSystemProxyEnv,
   wellKnownUserToolchainBins,
   type ProcessStampContract,
@@ -244,8 +243,8 @@ HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settin
     let callCount = 0;
     const runCommand = () => values[callCount++] ?? values.at(-1) ?? "";
 
-    const first = resolveSystemProxyEnvCached({ platform: "darwin", refresh: true, runCommand });
-    const second = resolveSystemProxyEnvCached({ platform: "darwin", runCommand });
+    const first = resolveSystemProxyEnv({ platform: "darwin", runCommand });
+    const second = resolveSystemProxyEnv({ platform: "darwin", runCommand });
 
     expect(first.HTTP_PROXY).toBe("http://127.0.0.1:8001");
     expect(second.HTTP_PROXY).toBe("http://127.0.0.1:8002");

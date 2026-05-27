@@ -7,6 +7,7 @@ import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import * as platform from '@open-design/platform';
 import {
   createAgentSink,
   isSmokeOkReply,
@@ -1504,6 +1505,34 @@ describe('POST /api/test/connection provider mode', () => {
       ok: false,
       kind: 'timeout',
     });
+  });
+
+  it('uses a live system-proxy dispatcher for provider-mode fetches', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({
+      HTTPS_PROXY: 'http://system-proxy.internal:8443',
+      NODE_USE_ENV_PROXY: '1',
+    });
+    const fetchMock = vi.fn((_input: FetchInput, init?: FetchInit) => {
+      expect(init?.dispatcher).toBeDefined();
+      return Promise.resolve(jsonResponse({
+        choices: [{ message: { role: 'assistant', content: 'ok' } }],
+      }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      await expect(testProviderConnection({
+        protocol: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-good',
+        model: 'gpt-4o',
+      })).resolves.toMatchObject({
+        ok: true,
+        kind: 'success',
+      });
+    } finally {
+      proxySpy.mockRestore();
+    }
   });
 });
 
