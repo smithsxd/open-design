@@ -1564,6 +1564,20 @@ describe('POST /api/test/connection provider mode', () => {
     }
   });
 
+  it('refreshes system proxy env for each HTTP proxy dispatcher request', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnvCached').mockReturnValue({});
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit();
+
+      expect(proxySpy).toHaveBeenCalledWith({ refresh: true });
+      expect(requestInit).toEqual({});
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
   it('keeps loopback provider probes off the proxy when user NO_PROXY omits localhost', async () => {
     const providerServer = http.createServer((req, res) => {
       if (req.url === '/v1/models') {

@@ -236,7 +236,11 @@ export function mergeNoProxyWithLoopbackDefaults(noProxy: string | undefined): s
 function buildConnectionTestProxyDispatcher(
   env: NodeJS.ProcessEnv = process.env,
 ): EnvHttpProxyAgent | null {
-  const proxyEnv = mergeProxyAwareEnv(process.platform, resolveSystemProxyEnvCached(), env);
+  const proxyEnv = mergeProxyAwareEnv(
+    process.platform,
+    resolveSystemProxyEnvCached({ refresh: true }),
+    env,
+  );
   const allProxy = proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
   const httpProxyFromAll = isHttpOrHttpsProxy(allProxy);
   const httpProxy = proxyEnv.HTTP_PROXY ?? proxyEnv.http_proxy ?? httpProxyFromAll;
