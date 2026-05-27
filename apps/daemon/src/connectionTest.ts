@@ -247,7 +247,7 @@ function buildConnectionTestProxyDispatcher(
   });
 }
 
-function proxyDispatcherRequestInit(
+export function proxyDispatcherRequestInit(
   env: NodeJS.ProcessEnv = process.env,
 ): {
   close(): Promise<void>;

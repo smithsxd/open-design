@@ -1,5 +1,6 @@
 import type http from 'node:http';
 import { afterEach, beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
+import * as platform from '@open-design/platform';
 import { startServer } from '../src/server.js';
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -58,6 +59,110 @@ describe('API proxy routes', () => {
         redirect: 'error',
       }),
     );
+  });
+
+  it.each([
+    {
+      provider: 'anthropic',
+      path: '/api/proxy/anthropic/stream',
+      body: {
+        baseUrl: 'https://api.anthropic.com',
+        apiKey: 'sk-ant',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: sseResponse('event: message_stop\ndata: {}\n\n'),
+    },
+    {
+      provider: 'openai',
+      path: '/api/proxy/openai/stream',
+      body: {
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-openai',
+        model: 'gpt-test',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: sseResponse('data: [DONE]\n\n'),
+    },
+    {
+      provider: 'azure',
+      path: '/api/proxy/azure/stream',
+      body: {
+        baseUrl: 'https://resource.openai.azure.com',
+        apiKey: 'azure-key',
+        model: 'deployment-one',
+        apiVersion: '2024-10-21',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: sseResponse('data: [DONE]\n\n'),
+    },
+    {
+      provider: 'google',
+      path: '/api/proxy/google/stream',
+      body: {
+        baseUrl: 'https://generativelanguage.googleapis.com',
+        apiKey: 'google-key',
+        model: 'gemini-2.0-flash',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: sseResponse('data: {"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}\n\n'),
+    },
+    {
+      provider: 'ollama',
+      path: '/api/proxy/ollama/stream',
+      body: {
+        baseUrl: 'https://ollama.example.com',
+        apiKey: 'ollama-key',
+        model: 'llama3',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: new Response(new TextEncoder().encode('{"done":true}\n'), {
+        status: 200,
+        headers: { 'content-type': 'application/x-ndjson' },
+      }),
+    },
+    {
+      provider: 'senseaudio',
+      path: '/api/proxy/senseaudio/stream',
+      body: {
+        baseUrl: 'https://api.senseaudio.cn',
+        apiKey: 'sa-key',
+        model: 'senseaudio-s2',
+        projectId: 'test-project',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      response: sseResponse('data: [DONE]\n\n'),
+    },
+  ])('uses the live proxy dispatcher for $provider proxy requests', async ({ path, body, response }) => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({
+      HTTPS_PROXY: 'http://system-proxy.internal:8443',
+      NODE_USE_ENV_PROXY: '1',
+    });
+    const fetchMock = vi.fn((input: FetchInput, init?: FetchInit) => {
+      const url = String(input);
+      if (url.startsWith(baseUrl)) return realFetch(input, init);
+      expect(init?.dispatcher).toBeDefined();
+      return Promise.resolve(response.clone());
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const res = await realFetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      expect(res.status).toBe(200);
+      await res.text();
+      expect(
+        fetchMock.mock.calls.some(
+          ([input, init]) => !String(input).startsWith(baseUrl) && init?.dispatcher,
+        ),
+      ).toBe(true);
+    } finally {
+      proxySpy.mockRestore();
+    }
   });
 
   // Regression: appendVersionedApiPath needs to thread three shapes:

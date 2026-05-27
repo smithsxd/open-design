@@ -17,7 +17,7 @@ import {
 } from './byok-tools.js';
 import { isSafeId as isSafeProjectId } from './projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
-import { validateBaseUrlResolved } from './connectionTest.js';
+import { proxyDispatcherRequestInit, validateBaseUrlResolved } from './connectionTest.js';
 import { googleStreamGenerateContentUrl } from './google-models.js';
 
 // Allowlist for the `/feedback` route. Mirrors the
@@ -672,8 +672,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
     try {
       const response = await fetch(url, {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -722,6 +724,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:anthropic] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
@@ -772,8 +776,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
     try {
       const response = await fetch(url, {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -820,6 +826,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:openai] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
@@ -892,8 +900,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
     try {
       const requestInit = {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -962,6 +972,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:azure] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
@@ -1012,8 +1024,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
     try {
       const response = await fetch(url, {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1061,6 +1075,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:google] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
@@ -1099,8 +1115,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
     try {
       const response = await fetch(url, {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify(payload),
@@ -1136,6 +1154,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:ollama] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
@@ -1265,6 +1285,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         tool_choice: 'auto',
       };
       const response = await fetch(url, {
+        ...proxyDispatcher.requestInit,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1409,6 +1430,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     const sse = createSseResponse(res);
     sse.send('start', { model });
+    const proxyDispatcher = proxyDispatcherRequestInit();
 
     // SenseAudio's gateway issues one API key that works for both
     // /v1/chat/completions and the image / TTS surfaces. Mirror the
@@ -1495,6 +1517,8 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       console.error(`[proxy:senseaudio] internal error: ${err.message}`);
       sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
       sse.end();
+    } finally {
+      await proxyDispatcher.close();
     }
   });
 
