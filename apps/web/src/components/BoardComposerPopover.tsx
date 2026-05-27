@@ -184,6 +184,7 @@ export function BoardComposerPopover({
   docked?: boolean;
 }) {
   const pendingCount = notes.length + (draft.trim() ? 1 : 0);
+  const hasCommentChange = !existing || draft.trim() !== existing.note.trim();
   const podMembers = target.podMembers ?? [];
   return (
     <div
@@ -294,7 +295,7 @@ export function BoardComposerPopover({
               type="button"
               className="ghost"
               data-testid="comment-popover-save"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || !hasCommentChange}
               onClick={() => void onSaveComment()}
             >
               {t('chat.comments.comment')}

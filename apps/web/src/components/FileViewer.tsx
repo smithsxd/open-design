@@ -6276,6 +6276,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       onClose={() => {
         setCommentPanelOpen(false);
         setCommentSidePanelCollapsed(false);
+        setCommentCreateMode(false);
+        setBoardMode(false);
         clearBoardComposer();
       }}
       onToggleSelect={(commentId) => {

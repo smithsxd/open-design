@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BoardComposerPopover } from '../../src/components/BoardComposerPopover';
 import type { PreviewCommentSnapshot } from '../../src/comments';
-import type { PreviewCommentMember } from '../../src/types';
+import type { PreviewComment, PreviewCommentMember } from '../../src/types';
 
 afterEach(() => {
   cleanup();
@@ -34,6 +34,34 @@ function podTarget(members: PreviewCommentMember[]): PreviewCommentSnapshot {
     selectionKind: 'pod',
     memberCount: members.length,
     podMembers: members,
+  };
+}
+
+function elementTarget(): PreviewCommentSnapshot {
+  return {
+    ...podTarget([]),
+    selectionKind: 'element',
+    memberCount: undefined,
+    podMembers: undefined,
+  };
+}
+
+function existingComment(note: string): PreviewComment {
+  return {
+    id: 'comment-1',
+    projectId: 'project-1',
+    conversationId: 'conversation-1',
+    filePath: 'index.html',
+    elementId: 'pod-1',
+    selector: '',
+    label: 'Pod',
+    text: '',
+    position: { x: 0, y: 0, width: 100, height: 60 },
+    htmlHint: '',
+    note,
+    status: 'open',
+    createdAt: 1,
+    updatedAt: 1,
   };
 }
 
@@ -111,5 +139,58 @@ describe('BoardComposerPopover captured-component removal', () => {
     const popover = screen.getByTestId('comment-popover');
     expect(Number.parseFloat(popover.style.left)).toBeLessThanOrEqual(306);
     expect(Number.parseFloat(popover.style.left)).toBeGreaterThanOrEqual(14);
+  });
+
+  it('disables the comment action for unchanged existing comments', () => {
+    const onSaveComment = vi.fn();
+    const { rerender } = render(
+      <BoardComposerPopover
+        target={elementTarget()}
+        existing={existingComment('区域放大')}
+        draft="区域放大"
+        notes={[]}
+        onDraft={() => {}}
+        onAddDraft={() => {}}
+        onRemoveQueuedNote={() => {}}
+        onClose={() => {}}
+        onSaveComment={onSaveComment}
+        onSendBatch={() => {}}
+        onRemoveMember={() => {}}
+        sending={false}
+        t={((key: string) => {
+          if (key === 'chat.comments.comment') return 'Comment';
+          if (key === 'chat.comments.sendToChat') return 'Send to chat';
+          if (key === 'common.delete') return 'Delete';
+          return String(key);
+        }) as never}
+      />,
+    );
+
+    expect(screen.getByTestId('comment-popover-save').hasAttribute('disabled')).toBe(true);
+
+    rerender(
+      <BoardComposerPopover
+        target={elementTarget()}
+        existing={existingComment('区域放大')}
+        draft="区域放大一些"
+        notes={[]}
+        onDraft={() => {}}
+        onAddDraft={() => {}}
+        onRemoveQueuedNote={() => {}}
+        onClose={() => {}}
+        onSaveComment={onSaveComment}
+        onSendBatch={() => {}}
+        onRemoveMember={() => {}}
+        sending={false}
+        t={((key: string) => {
+          if (key === 'chat.comments.comment') return 'Comment';
+          if (key === 'chat.comments.sendToChat') return 'Send to chat';
+          if (key === 'common.delete') return 'Delete';
+          return String(key);
+        }) as never}
+      />,
+    );
+
+    expect(screen.getByTestId('comment-popover-save').hasAttribute('disabled')).toBe(false);
   });
 });
