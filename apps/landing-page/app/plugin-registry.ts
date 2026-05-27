@@ -5,7 +5,7 @@ import {
   pluginSlug,
   pluginDetailPath,
   pluginPreviewPath,
-} from '@open-design/contracts';
+} from './_lib/plugin-slug';
 import {
   DEFAULT_LOCALE,
   getLandingUiCopy,

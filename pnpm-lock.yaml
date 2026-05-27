@@ -177,9 +177,6 @@ importers:
       '@fontsource-variable/playfair-display':
         specifier: 5.2.8
         version: 5.2.8
-      '@open-design/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       astro:
         specifier: 6.3.5
         version: 6.3.5(@types/node@20.19.39)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.2)(tsx@4.22.3)(yaml@2.9.0)
