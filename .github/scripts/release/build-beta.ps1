@@ -6,7 +6,9 @@ param(
   [string]$Namespace = "release-beta-win",
   [string]$Root = "",
   [string]$ReleaseVersion = "",
-  [string]$MetadataUrl = "https://releases.open-design.ai/beta/latest/metadata.json"
+  [string]$MetadataUrl = "https://releases.open-design.ai/beta/latest/metadata.json",
+  [ValidateSet("full", "fast")]
+  [string]$SmokeMode = "full"
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,7 +135,19 @@ function Read-BuildJson {
   if (-not (Test-Path -LiteralPath $buildJsonPath)) {
     return $null
   }
-  return Get-Content -LiteralPath $buildJsonPath -Raw | ConvertFrom-Json
+  return Read-JsonFile $buildJsonPath
+}
+
+function Read-JsonFile([string]$Path) {
+  return Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json
+}
+
+function Get-SmokeSummary {
+  $summaryJsonPath = Join-Path $env:OD_PACKAGED_E2E_REPORT_DIR "summary.json"
+  if (-not (Test-Path -LiteralPath $summaryJsonPath)) {
+    return $null
+  }
+  return Read-JsonFile $summaryJsonPath
 }
 
 function Get-ArtifactSummary {
@@ -194,6 +208,7 @@ function Write-IndexAndSummary([string]$Status) {
   $artifactSummary = Get-ArtifactSummary
   $cacheSummary = Get-CacheSummary
   $buildSegments = Get-BuildSegments
+  $smokeSummary = Get-SmokeSummary
   $index = [ordered]@{
     channel = "beta"
     lane = $Lane
@@ -209,6 +224,8 @@ function Write-IndexAndSummary([string]$Status) {
     cacheDir = $cacheDir
     buildJsonPath = $buildJsonPath
     reportDir = $env:OD_PACKAGED_E2E_REPORT_DIR
+    smokeMode = $SmokeMode
+    smoke = $smokeSummary
     artifacts = $artifactSummary
     cache = $cacheSummary
     buildSegments = $buildSegments
@@ -228,6 +245,7 @@ function Write-IndexAndSummary([string]$Status) {
     "- lane: ``$Lane``",
     "- namespace: ``$Namespace``",
     "- releaseVersion: ``$ReleaseVersion``",
+    "- smokeMode: ``$SmokeMode``",
     "- duration: ``$(Format-Duration $durationMs)``",
     "- index: ``$indexPath``",
     "- reportDir: ``$($env:OD_PACKAGED_E2E_REPORT_DIR)``"
@@ -277,6 +295,14 @@ function Write-IndexAndSummary([string]$Status) {
         $detailText = " files=$($segment.details.files) dirs=$($segment.details.directories) bytes=$([Math]::Round($segment.details.bytes / 1MB, 1))MiB maxPath=$($segment.details.maxPathLength)"
       }
       $summary += "- $($segment.phase): ``$(Format-Duration $segment.durationMs)``$detailText"
+    }
+  }
+
+  if ($smokeSummary -ne $null -and $smokeSummary.timings -ne $null) {
+    $summary += ""
+    $summary += "### Smoke Segments"
+    foreach ($timing in @($smokeSummary.timings | Sort-Object durationMs -Descending | Select-Object -First 16)) {
+      $summary += "- $($timing.step): ``$(Format-Duration $timing.durationMs)``"
     }
   }
 
@@ -385,6 +411,7 @@ try {
   $env:OD_PACKAGED_E2E_BUILD_JSON_PATH = $buildJsonPath
   $env:OD_PACKAGED_E2E_WIN = "1"
   $env:OD_PACKAGED_E2E_WIN_VERIFY_REINSTALL = "0"
+  $env:OD_PACKAGED_E2E_WIN_UPDATER_VIOLENT = if ($SmokeMode -eq "fast") { "0" } else { "1" }
   $env:OD_PACKAGED_E2E_NAMESPACE = $Namespace
   $env:OD_PACKAGED_E2E_RELEASE_CHANNEL = "beta"
   $env:OD_PACKAGED_E2E_RELEASE_VERSION = $ReleaseVersion
