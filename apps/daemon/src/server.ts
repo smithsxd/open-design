@@ -234,6 +234,7 @@ import { observePendingInstallerApplyAttempts } from './update-apply-observation
 import {
   agentIdToTracking,
   deriveConfigureGlobals,
+  projectKindToTracking,
   type ObservabilityEventRequest,
 } from '@open-design/contracts/analytics';
 import {
@@ -1859,6 +1860,19 @@ async function readProjectPluginManifest(folder) {
 }
 
 export const __forTestReadProjectPluginManifest = readProjectPluginManifest;
+
+function resolveRunProjectKindForAnalytics({
+  hintProjectKind,
+  projectMetadata,
+}) {
+  if (typeof hintProjectKind === 'string') return hintProjectKind;
+  if (projectMetadata?.importedFrom === 'design-system') return 'design_system';
+  return projectKindToTracking(projectMetadata?.kind);
+}
+
+export function __forTestResolveRunProjectKindForAnalytics(args) {
+  return resolveRunProjectKindForAnalytics(args);
+}
 
 function githubRepoNameFromPluginName(name) {
   const slug = String(name)
@@ -12351,13 +12365,19 @@ export async function startServer({
       const hintProjectKind = typeof analyticsHints.projectKind === 'string'
         ? analyticsHints.projectKind
         : null;
+      const requestProjectId = typeof reqBody.projectId === 'string' ? reqBody.projectId : null;
+      const runProject = requestProjectId ? getProject(db, requestProjectId) : null;
+      const runProjectKind = resolveRunProjectKindForAnalytics({
+        hintProjectKind,
+        projectMetadata: runProject?.metadata,
+      });
       const dsRunContext =
         analyticsHints.designSystemRunContext
           && typeof analyticsHints.designSystemRunContext === 'object'
           ? (analyticsHints.designSystemRunContext as Record<string, unknown>)
           : {};
       const isDesignSystemRun =
-        hintProjectKind === 'design_system'
+        runProjectKind === 'design_system'
         || hintEntryFrom === 'design_system_create'
         || hintEntryFrom === 'onboarding_design_system'
         || hintEntryFrom === 'regenerate_from_review';
@@ -12367,18 +12387,19 @@ export async function startServer({
       // companion_surfaces / connectors / use_speaker_notes /
       // include_animations / reference_template / aspect /
       // project_source) — most aren't on the wire yet, but
-      // entry_from / projectKind / DS run context land here when the
-      // client populates `analyticsHints`. Other dimensions stay
-      // omitted until follow-up PRs thread them through.
+      // project_kind falls back to the stored project metadata so ordinary
+      // project runs are classified even when callers do not send
+      // `analyticsHints`. Other dimensions stay omitted until follow-up PRs
+      // thread them through.
       const baseProps: Record<string, unknown> = {
         page_name: isDesignSystemRun ? 'design_system_project' : 'chat_panel',
         area: isDesignSystemRun ? 'design_system_generation' : 'chat_composer',
         ...configureGlobals,
-        project_id: typeof reqBody.projectId === 'string' ? reqBody.projectId : null,
+        project_id: requestProjectId,
         conversation_id:
           typeof reqBody.conversationId === 'string' ? reqBody.conversationId : null,
         run_id: run.id,
-        project_kind: hintProjectKind,
+        project_kind: runProjectKind,
         ...(hintEntryFrom ? { entry_from: hintEntryFrom } : {}),
         design_system_id:
           typeof reqBody.designSystemId === 'string'

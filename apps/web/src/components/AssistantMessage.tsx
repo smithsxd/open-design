@@ -20,6 +20,7 @@ import {
   trackFeedbackSubmitResult,
 } from "../analytics/events";
 import {
+  agentIdToTracking,
   normalizeCustomReason,
   type TrackingFeedbackReasonCode,
   type TrackingFeedbackRatingWithNone,
@@ -644,6 +645,8 @@ export function AssistantMessage({
                 conversationId={conversationId}
                 runId={message.runId ?? null}
                 assistantMessageId={message.id}
+                modelId={assistantFeedbackModelId(message)}
+                agentProviderId={message.agentId ? agentIdToTracking(message.agentId) : null}
                 producedFileCount={displayedProduced.length}
                 hasDesignSystemContext={hasDesignSystemContext}
                 footerProps={{
@@ -767,6 +770,16 @@ function assistantModelDetail(message: ChatMessage): string | null {
   return detail;
 }
 
+function assistantFeedbackModelId(message: ChatMessage): string | null {
+  const detail = assistantModelDetail(message);
+  if (detail) return detail;
+  const displayName = message.agentName?.trim();
+  if (!displayName) return null;
+  const parts = displayName.split(" · ");
+  const model = parts.length > 1 ? parts[parts.length - 1]?.trim() : "";
+  return model || null;
+}
+
 function appendRoleModel(label: string, model: string | null): string {
   if (!model || label.includes(" · ")) return label;
   return `${label} · ${model}`;
@@ -843,6 +856,8 @@ function AssistantFeedback({
   conversationId,
   runId,
   assistantMessageId,
+  modelId,
+  agentProviderId,
   producedFileCount,
 }: {
   feedback: ChatMessage["feedback"];
@@ -854,6 +869,8 @@ function AssistantFeedback({
   conversationId: string | null;
   runId: string | null;
   assistantMessageId: string;
+  modelId: string | null;
+  agentProviderId: ReturnType<typeof agentIdToTracking> | null;
   producedFileCount: number;
 }) {
   const t = useT();
@@ -1024,6 +1041,8 @@ function AssistantFeedback({
         conversation_id: conversationId,
         assistant_message_id: assistantMessageId,
         run_id: runId ?? "",
+        model_id: modelId,
+        agent_provider_id: agentProviderId,
         rating: reasonRating,
         ...(reasonJoined ? { reason: reasonJoined } : {}),
         reason_count: reasonCodes.length,

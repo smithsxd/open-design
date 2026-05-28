@@ -1849,6 +1849,8 @@ export interface FeedbackSubmitResultProps {
   conversation_id: string | null;
   assistant_message_id: string;
   run_id: string;
+  model_id: string | null;
+  agent_provider_id: TrackingCliProviderId | null;
   rating: 'positive' | 'negative';
   reason?: string;
   reason_count: number;
