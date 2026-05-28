@@ -1328,7 +1328,7 @@ When the positive path is gated on something missing in the sandbox, try in orde
 
 a. PR-provided fixtures: if the diff includes 'tests/fixtures/fake-X.mjs' (or similar), the PR author wrote that stub specifically so tests can run without the real binary. The fixture lives on the host filesystem after checkout. The the PR daemon almost certainly reads an env var to point at it (look for 'process.env.VELA_BIN' / 'process.env.FAKE_X_BIN' etc. in the diff). Container env is set ONCE at 'docker run' before this prompt starts -- you cannot change it mid-run. Emit §📎 Needs (e.g., "FAKE_X_BIN: prewire to the fixture path so the next run can test the positive path") so the maintainer (or harness on next iteration) can configure the run. Do NOT emit a concrete host path -- name the env var and its purpose only.
 
-b. Build a host-side stub if it would unblock: with 'fs:write' you can create a script at any host path. But the running daemon will not pick it up unless its env points at it -- same env-at-startup constraint as (a). Signal in §🔑 Needs / §📎 Needs.
+b. Build a host-side stub if it would unblock: with 'fs:write' you can create a script at any host path. But the running daemon will not pick it up unless its env points at it -- same env-at-startup constraint as (a). Signal in §📎 Needs (env/config wiring sub-type). Only escalate to §🔑 Needs if the stub itself is additionally blocked on a missing secret credential.
 
 c. Probe APIs directly via Playwright -- this is your most direct unblock and needs no harness change:
    - 'await page.evaluate(() => fetch(\"/api/new/route\", { method:\"POST\", body: JSON.stringify({...}) }).then(async r => ({status: r.status, body: await r.text()})))'
@@ -1424,7 +1424,8 @@ If proper verification required a secret you did not have, list it here. The das
 
 Examples:
 - \`VELA_RUNTIME_KEY\`: real OpenRouter key to verify backend response in positive AMR login (fake-vela.mjs unblocks UI only)
-- \`AMR_USER\` + \`AMR_PASS\`: real Vela account creds to drive popup login
+- \`AMR_USER\`: real Vela account username to drive popup login
+- \`AMR_PASS\`: real Vela account password to drive popup login
 
 Rules:
 - DO NOT paste any existing secret value here. Just request by NAME + PURPOSE.
