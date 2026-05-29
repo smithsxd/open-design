@@ -231,6 +231,7 @@ jobs:
             --app-version "${{ needs.metadata.outputs.release_version }}"
             --mac-compression normal
             --to all
+            --require-vela-cli
             --json
             --signed
           )
@@ -415,6 +416,7 @@ jobs:
             --app-version "${{ needs.metadata.outputs.release_version }}" \
             --mac-compression normal \
             --to all \
+            --require-vela-cli \
             --json \
             --signed
 
@@ -508,6 +510,7 @@ jobs:
             "--portable",
             "--app-version", "${{ needs.metadata.outputs.release_version }}",
             "--to", "all",
+            "--require-vela-cli",
             "--json"
           )
           "cache_failed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -526,6 +529,7 @@ jobs:
               --portable `
               --app-version "${{ needs.metadata.outputs.release_version }}" `
               --to all `
+              --require-vela-cli `
               --json
             if ($LASTEXITCODE -ne 0) {
               throw "Windows tools-pack uncached fallback build exited with code $LASTEXITCODE"
