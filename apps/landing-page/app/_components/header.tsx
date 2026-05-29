@@ -280,8 +280,10 @@ export function Header({
             Discord + X icon buttons live before Download / Star so the
             community channels are reachable from every page without
             burning a nav text slot. The icons are aria-labeled and
-            otherwise unlabeled — at narrow widths they survive while
-            text-only nav items get pushed off.
+            otherwise unlabeled. At ≤1080px they collapse alongside the
+            ghost Download CTA and the text-only nav <ul> (the latter
+            moves into the hamburger panel) — only the Star CTA stays
+            visible in the bar.
           */}
           <a
             className='nav-icon'
