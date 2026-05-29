@@ -68,11 +68,14 @@ for (const e of m.entries) {
 }
 ' "$MANIFEST" "$FILTER_AGENT" "$FILTER_OUTCOME" "$FILTER_SKILL")
 
-TOTAL=$(printf '%s\n' "$ENTRIES_TSV" | grep -c "" || true)
-if [ "$TOTAL" -eq 0 ]; then
+# Empty-string check has to come BEFORE any line-counting — `printf '%s\n' ""`
+# emits a single empty line, which `grep -c ""` / `wc -l` would count as 1
+# and let a typo'd `--agent xyz` quietly succeed with zero downloads.
+if [ -z "$ENTRIES_TSV" ]; then
   echo "no entries matched filter" >&2
   exit 0
 fi
+TOTAL=$(printf '%s\n' "$ENTRIES_TSV" | wc -l | tr -d ' ')
 
 echo "Fetching up to $TOTAL recordings → $CACHE_DIR"
 echo "  manifest:    $MANIFEST"
