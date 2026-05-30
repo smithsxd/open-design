@@ -296,6 +296,14 @@
   transform: translateY(0) scale(0.99);
 }
 
+/* Card press feedback */
+.design-card:active,
+.plugins-home__card:active,
+.recent-projects__card:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 80ms;
+}
+
 /* ================================================================
    Comment card
    ================================================================ */
