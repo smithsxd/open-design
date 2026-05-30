@@ -69,6 +69,12 @@ import type { ChatMessage } from '../types';
 interface Props {
   projectId: string;
   projectKind: TrackingProjectKind;
+  // Basename of the project's chosen working directory (e.g. "openclaw").
+  // Threaded to DesignFilesPanel as the breadcrumb root label. Undefined for
+  // default-storage projects.
+  rootDirName?: string;
+  // True while a working-dir replace is reindexing; shows a loading state.
+  reloading?: boolean;
   files: ProjectFile[];
   liveArtifacts: LiveArtifactSummary[];
   filesRefreshKey?: number;
@@ -218,6 +224,8 @@ const DESIGN_SYSTEM_IMAGE_OR_FONT_EXTENSIONS = /\.(svg|png|jpe?g|gif|webp|avif|i
 export function FileWorkspace({
   projectId,
   projectKind,
+  rootDirName,
+  reloading,
   files,
   liveArtifacts,
   filesRefreshKey = 0,
@@ -1077,6 +1085,8 @@ export function FileWorkspace({
           <DesignFilesPanel
             key={projectId}
             projectId={projectId}
+            rootDirName={rootDirName}
+            reloading={reloading}
             files={visibleFiles}
             liveArtifacts={liveArtifactEntries}
             onRefreshFiles={onRefreshFiles}

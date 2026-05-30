@@ -1144,6 +1144,13 @@ export const id: Dict = {
   'designFiles.next': 'Berikutnya',
   'designFiles.jumpToPage': 'Lompat ke halaman',
   'designFiles.pageInfo': '{start}–{end} dari {total}',
+  'designFiles.sectionFolders': 'Folders',
+  'designFiles.sectionStylesheets': 'Stylesheets',
+  'designFiles.sectionDocuments': 'Documents',
+  'designFiles.kindStylesheet': 'Stylesheet',
+  'designFiles.modifiedExt': 'Modified {time} · {size} · {ext}',
+  'designFiles.usefulInfoLabel': 'Useful info',
+  'designFiles.usefulInfoTip': 'Double-click any file to open it in a full tab.',
 
   'quickSwitcher.placeholder': 'Buka file...',
   'quickSwitcher.empty': 'Tidak ada file di proyek ini',
