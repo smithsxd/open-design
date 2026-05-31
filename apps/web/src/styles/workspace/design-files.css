@@ -235,6 +235,431 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Design browser workspace module. */
+.design-browser {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+.db-chrome {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  z-index: 3;
+}
+.db-nav,
+.db-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.db-actions {
+  position: relative;
+  justify-content: flex-end;
+}
+.db-icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.db-icon-btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.db-icon-btn:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+.db-icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.db-icon-btn.is-spinning svg {
+  animation: db-spin 900ms linear infinite;
+}
+@keyframes db-spin {
+  to { transform: rotate(360deg); }
+}
+.db-address-form {
+  position: relative;
+  height: 34px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.db-address-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.db-address-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.db-address-form input::placeholder {
+  color: var(--text-faint);
+}
+.db-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: min(420px, calc(100vh - 160px));
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  z-index: 220;
+}
+.db-suggestions button {
+  width: 100%;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  padding: 7px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.db-suggestions button:hover {
+  background: var(--bg-subtle);
+}
+.db-suggestion-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.db-suggestion-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.db-suggestion-copy span,
+.db-suggestion-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-suggestion-copy span {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.db-suggestion-copy small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.db-suggestion-type {
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+.db-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 248px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+  z-index: 230;
+}
+.db-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  padding: 7px 8px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.db-menu button:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.db-menu button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.db-menu-separator {
+  display: block;
+  height: 1px;
+  margin: 6px 2px;
+  background: var(--border);
+}
+.db-status {
+  min-height: 28px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-subtle) 72%, var(--bg-panel));
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.db-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  background: var(--bg);
+}
+.db-webview,
+.db-fallback,
+.db-fallback iframe {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.db-fallback {
+  position: relative;
+  display: flex;
+  background: var(--bg);
+}
+.db-fallback iframe {
+  background: #fff;
+}
+.db-fallback-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  color: var(--text-muted);
+  font-size: 12px;
+  box-shadow: var(--shadow-lg);
+}
+.db-fallback-bar button,
+.db-reference-actions button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.db-fallback-bar button:hover,
+.db-reference-actions button:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.db-start {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px;
+  background: var(--bg);
+}
+.db-start-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 24px;
+  align-items: end;
+  padding: 10px 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.db-kicker {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.db-start h2 {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: 46px;
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+.db-agent-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  padding: 14px;
+}
+.db-agent-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.db-agent-card p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.db-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding-top: 22px;
+}
+.db-reference-group {
+  min-width: 0;
+}
+.db-reference-group h3 {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.db-reference-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.db-reference-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  padding: 12px;
+}
+.db-reference-card > button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.db-reference-card > button span,
+.db-reference-card > button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-reference-card > button span {
+  font-size: 14px;
+  font-weight: 700;
+}
+.db-reference-card > button small {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.db-reference-card p {
+  margin: 8px 0 12px;
+  min-height: 36px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.db-reference-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-reference-actions button:disabled {
+  opacity: 0.46;
+  cursor: default;
+}
+
+@media (max-width: 1020px) {
+  .db-reference-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .db-reference-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .db-chrome {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .db-nav,
+  .db-actions {
+    justify-content: flex-start;
+  }
+  .db-start {
+    padding: 18px;
+  }
+  .db-start-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .db-start h2 {
+    font-size: 34px;
+  }
+  .db-reference-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .df-kind-filter-list li + li {
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }

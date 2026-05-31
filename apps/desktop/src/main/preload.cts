@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 import type {
   OpenDesignHostBridge,
   OpenDesignHostActionResult,
+  OpenDesignHostBrowserClearDataOptions,
   OpenDesignHostFailure,
   OpenDesignHostProjectImportResult,
   OpenDesignHostProjectReplaceWorkingDirResult,
@@ -188,6 +189,16 @@ const shell = {
   },
 };
 
+const browser = {
+  clearData: async (options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult> => {
+    try {
+      return await ipcRenderer.invoke('browser:clear-data', options ?? null);
+    } catch (error) {
+      return actionFailure(reasonFromError(error));
+    }
+  },
+};
+
 function invokeUpdater(
   action: 'check' | 'download' | 'install' | 'status',
   options?: OpenDesignHostUpdaterActionOptions,
@@ -232,6 +243,7 @@ const hostBridge = {
     ...(osLocale !== undefined ? { osLocale } : {}),
   },
   shell,
+  browser,
   project,
   pdf: {
     print: async (html: string, nonce?: string, options?: PrintPdfOptions): Promise<OpenDesignHostActionResult> => {

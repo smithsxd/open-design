@@ -5,6 +5,7 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
 import { useAnalytics } from '../analytics/provider';
 import {
@@ -43,6 +44,7 @@ import {
   type ProjectFile,
 } from '../types';
 import { DesignFilesPanel } from './DesignFilesPanel';
+import { DesignBrowserPanel } from './DesignBrowserPanel';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { designSystemGithubEvidenceState, repoConnectCopy } from './design-system-github-evidence';
 import { FileViewer, LiveArtifactViewer } from './FileViewer';
@@ -123,6 +125,7 @@ interface SketchState {
 
 const DESIGN_FILES_TAB = '__design_files__';
 const DESIGN_SYSTEM_TAB = '__design_system__';
+const BROWSER_TAB = '__browser__';
 type TabDropEdge = 'before' | 'after';
 type DesignSystemReviewDecision =
   NonNullable<ProjectMetadata['designSystemReview']>[string]['decision'];
@@ -251,12 +254,17 @@ export function FileWorkspace({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sketches, setSketches] = useState<Record<string, SketchState>>({});
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [browserTabOpen, setBrowserTabOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [addMenuPos, setAddMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [draggedTabName, setDraggedTabName] = useState<string | null>(null);
   const [dragOverTab, setDragOverTab] = useState<{
     name: string;
     edge: TabDropEdge;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
   const tabsBarRef = useRef<HTMLDivElement | null>(null);
   const draggedTabNameRef = useRef<string | null>(null);
 
@@ -277,9 +285,61 @@ export function FileWorkspace({
     setActiveTab(tabsState.active ?? defaultRootTab);
   }, [tabsState.active, defaultRootTab]);
 
+  useEffect(() => {
+    setBrowserTabOpen(false);
+    setAddMenuOpen(false);
+  }, [projectId]);
+
+  // The add-module menu is portaled to <body> so the tab strip's overflow
+  // clipping (overflow-x: auto turns .ws-tabs-bar into a scroll container that
+  // also clips vertically) cannot hide it — without this the menu opened but
+  // was clipped out of view, making the + button look dead. Because the menu
+  // lives outside .ws-add-tab now, position it manually from the button and
+  // treat both the button and the portaled menu as "inside" for dismissal.
+  useEffect(() => {
+    if (!addMenuOpen) {
+      setAddMenuPos(null);
+      return;
+    }
+    const updatePosition = () => {
+      const button = addButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      setAddMenuPos({ top: rect.bottom + 8, left: rect.left });
+    };
+    updatePosition();
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (addButtonRef.current?.contains(target)) return;
+      if (addMenuRef.current?.contains(target)) return;
+      setAddMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [addMenuOpen]);
+
   function setPersistedActive(name: string | null) {
     setActiveTab(name ?? defaultRootTab);
     onTabsStateChange({ tabs: persistedTabs, active: name });
+  }
+
+  function openBrowserTab() {
+    setUploadError(null);
+    setBrowserTabOpen(true);
+    setActiveTab(BROWSER_TAB);
+    setAddMenuOpen(false);
+  }
+
+  function closeBrowserTab() {
+    setBrowserTabOpen(false);
+    if (activeTab === BROWSER_TAB) setActiveTab(DESIGN_FILES_TAB);
   }
 
   function activatePending(name: string) {
@@ -292,7 +352,7 @@ export function FileWorkspace({
   // back to the last remaining tab. Skip transient activeTab values
   // (DESIGN_FILES_TAB, pending sketches) since those aren't in persistedTabs.
   useEffect(() => {
-    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB) return;
+    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === BROWSER_TAB) return;
     if (sketches[activeTab] && !sketches[activeTab]!.persisted) return;
     if (!persistedTabs.includes(activeTab)) {
       setPersistedActive(persistedTabs[persistedTabs.length - 1] ?? null);
@@ -499,7 +559,7 @@ export function FileWorkspace({
   // The Design Files entry is already sticky-pinned, so we only scroll
   // for real workspace tabs. Issue #775.
   useEffect(() => {
-    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB) return;
+    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === BROWSER_TAB) return;
     const tabBar = tabsBarRef.current;
     if (!tabBar) return;
     const el = tabBar.querySelector<HTMLElement>('.ws-tab.active');
@@ -767,7 +827,7 @@ export function FileWorkspace({
   }
 
   const activeFile = useMemo<ProjectFile | null>(() => {
-    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB) return null;
+    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === BROWSER_TAB) return null;
     const onDisk = visibleFiles.find((f) => f.name === activeTab);
     if (onDisk) return onDisk;
     if (isSketchName(activeTab) && sketches[activeTab]) {
@@ -783,7 +843,7 @@ export function FileWorkspace({
   }, [activeTab, visibleFiles, sketches]);
 
   const activeLiveArtifact = useMemo<LiveArtifactWorkspaceEntry | null>(() => {
-    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB) return null;
+    if (activeTab === DESIGN_FILES_TAB || activeTab === DESIGN_SYSTEM_TAB || activeTab === BROWSER_TAB) return null;
     return liveArtifactEntries.find((entry) => entry.tabId === activeTab) ?? null;
   }, [activeTab, liveArtifactEntries]);
 
@@ -871,6 +931,38 @@ export function FileWorkspace({
             </span>
             <span className="ws-tab-label">{t('workspace.designFiles')}</span>
           </button>
+          <div className="ws-add-tab" ref={addMenuRef}>
+            <button
+              type="button"
+              className={`ws-tab-add ${addMenuOpen ? 'active' : ''}`}
+              aria-label="Add workspace module"
+              title="Add"
+              onClick={() => setAddMenuOpen((open) => !open)}
+            >
+              <Icon name="plus" size={15} />
+            </button>
+            {addMenuOpen ? (
+              <div className="ws-add-menu" role="menu">
+                <button type="button" role="menuitem" onClick={openBrowserTab}>
+                  <Icon name="globe" size={15} />
+                  <span>
+                    <strong>Browser</strong>
+                    <small>Reference sites and browser-harness tasks</small>
+                  </span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {browserTabOpen ? (
+            <Tab
+              key={BROWSER_TAB}
+              label="Browser"
+              active={activeTab === BROWSER_TAB}
+              onActivate={() => setActiveTab(BROWSER_TAB)}
+              onClose={closeBrowserTab}
+              kind="browser"
+            />
+          ) : null}
           {tabNames.map((name) => {
             const sketchEntry = sketches[name];
             const dirtyMark =
@@ -1028,6 +1120,12 @@ export function FileWorkspace({
             onPluginFolderAgentAction={onPluginFolderAgentAction}
             activePluginActionPaths={activePluginActionPaths}
             hiddenPluginActionPaths={hiddenPluginActionPaths}
+          />
+        ) : activeTab === BROWSER_TAB && browserTabOpen ? (
+          <DesignBrowserPanel
+            projectId={projectId}
+            onRefreshFiles={onRefreshFiles}
+            onOpenFile={openFile}
           />
         ) : isActiveSketch && activeSketch && activeFile ? (
           activeSketch.loaded ? (
@@ -2486,7 +2584,7 @@ function Tab({
   onActivate: () => void;
   onClose?: () => void;
   closable?: boolean;
-  kind?: ProjectFile['kind'] | 'live-artifact';
+  kind?: ProjectFile['kind'] | 'live-artifact' | 'browser';
   liveArtifact?: LiveArtifactWorkspaceEntry;
   draggable?: boolean;
   dragging?: boolean;
@@ -2595,10 +2693,12 @@ function kindIconName(
   kind?: string,
 ):
   | 'file-code'
+  | 'globe'
   | 'image'
   | 'pencil'
   | 'file'
   | null {
+  if (kind === 'browser') return 'globe';
   if (kind === 'live-artifact') return 'file-code';
   if (kind === 'html') return 'file-code';
   if (kind === 'image') return 'image';

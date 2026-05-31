@@ -830,3 +830,40 @@ describe('FileWorkspace sketch save', () => {
     expect(btn.querySelector('svg')).not.toBeNull();
   });
 });
+
+describe('FileWorkspace add-module menu', () => {
+  it('opens the add-module menu so the + button reveals the Browser option', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    const addButton = screen.getByRole('button', { name: 'Add workspace module' });
+    expect(addButton.getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      fireEvent.click(addButton);
+    });
+
+    expect(addButton.getAttribute('aria-expanded')).toBe('true');
+    const browserItem = screen.getByRole('menuitem', { name: /Browser/ });
+    const menu = browserItem.closest('.ws-add-menu');
+    expect(menu).not.toBeNull();
+
+    // The tab strip is a scroll container (overflow-x: auto turns it into one
+    // that also clips vertically), so a menu nested inside it would be clipped
+    // out of view — the bug that made the + button look dead. The menu must be
+    // portaled out of the clipping bar to stay visible.
+    const tabsBar = document.querySelector('.ws-tabs-bar');
+    expect(tabsBar).not.toBeNull();
+    expect(tabsBar!.contains(menu)).toBe(false);
+  });
+});

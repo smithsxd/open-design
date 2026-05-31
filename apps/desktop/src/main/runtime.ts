@@ -4,7 +4,7 @@ import { appendFile, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BrowserWindow, app, dialog, ipcMain, nativeImage, screen, shell } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, nativeImage, screen, session, shell } from "electron";
 import {
   DESKTOP_UPDATE_CHANNELS,
   DESKTOP_UPDATE_MODES,
@@ -219,6 +219,7 @@ const DESKTOP_PET_WINDOW_WIDTH = 360;
 const DESKTOP_PET_WINDOW_HEIGHT = 300;
 const DESKTOP_PET_WINDOW_MARGIN = 24;
 const UPDATER_STATUS_EVENT = "od:update:status-changed";
+const DESIGN_BROWSER_PARTITION = "persist:open-design-design-browser";
 const UPDATER_IPC_CHANNELS = [
   "od:update:status",
   "od:update:check",
@@ -254,6 +255,16 @@ export type DesktopConsoleEntry = {
 export type DesktopConsoleResult = {
   entries: DesktopConsoleEntry[];
 };
+
+type DesktopBrowserStorageType =
+  | "cachestorage"
+  | "cookies"
+  | "filesystem"
+  | "indexdb"
+  | "localstorage"
+  | "serviceworkers"
+  | "shadercache"
+  | "websql";
 
 export type DesktopClickInput = {
   selector: string;
@@ -772,6 +783,20 @@ export function isAllowedChildWindowUrl(url: string): boolean {
   }
 }
 
+export function isAllowedEmbeddedBrowserUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "http:" ||
+      parsed.protocol === "https:" ||
+      parsed.protocol === "file:" ||
+      (parsed.protocol === "about:" && parsed.pathname === "blank")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function resolveDesktopStatusUrl(currentUrl: string | null, pendingUrl: string | null): string | null {
   return pendingUrl ?? currentUrl;
 }
@@ -1053,6 +1078,7 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
   ipcMain.removeHandler("dialog:pick-and-replace-working-dir");
   ipcMain.removeHandler("shell:open-external");
   ipcMain.removeHandler("shell:open-path");
+  ipcMain.removeHandler("browser:clear-data");
   for (const channel of UPDATER_IPC_CHANNELS) {
     ipcMain.removeHandler(channel);
   }
@@ -1230,6 +1256,7 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
       nodeIntegration: false,
       preload: preloadPath,
       sandbox: true,
+      webviewTag: true,
     },
     width: 1280,
   });
@@ -1258,9 +1285,53 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
   const unsubscribeUpdater = options.updater?.subscribe(() => sendUpdaterStatus()) ?? (() => undefined);
   const requireMainWindowSender = (event: Electron.IpcMainInvokeEvent): void => {
     if (event.sender !== window.webContents) {
-      throw new Error("updater IPC is only available to the main Open Design window");
+      throw new Error("host IPC is only available to the main Open Design window");
     }
   };
+  window.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    const src = typeof params.src === "string" ? params.src : "";
+    const partition = typeof params.partition === "string" ? params.partition : "";
+    if (!isAllowedEmbeddedBrowserUrl(src) || partition !== DESIGN_BROWSER_PARTITION) {
+      event.preventDefault();
+      return;
+    }
+    delete webPreferences.preload;
+    webPreferences.contextIsolation = true;
+    webPreferences.nodeIntegration = false;
+    webPreferences.sandbox = true;
+  });
+  ipcMain.handle("browser:clear-data", async (event, rawOptions: unknown): Promise<OpenDesignHostActionResult> => {
+    requireMainWindowSender(event);
+    const optionsRecord = rawOptions != null && typeof rawOptions === "object"
+      ? rawOptions as { cookies?: unknown; storage?: unknown }
+      : {};
+    const clearCookies = optionsRecord.cookies !== false;
+    const clearStorage = optionsRecord.storage !== false;
+    const storages: DesktopBrowserStorageType[] = [];
+    if (clearCookies) storages.push("cookies");
+    if (clearStorage) {
+      storages.push(
+        "cachestorage",
+        "filesystem",
+        "indexdb",
+        "localstorage",
+        "shadercache",
+        "websql",
+        "serviceworkers",
+      );
+    }
+    try {
+      if (storages.length > 0) {
+        await session.fromPartition(DESIGN_BROWSER_PARTITION).clearStorageData({ storages });
+      }
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
   ipcMain.handle("od:update:status", async (event) => {
     requireMainWindowSender(event);
     const status = await (options.updater?.status() ?? unavailableUpdaterStatus());
@@ -1500,6 +1571,7 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
       for (const channel of UPDATER_IPC_CHANNELS) {
         ipcMain.removeHandler(channel);
       }
+      ipcMain.removeHandler("browser:clear-data");
       if (!petWindow.isDestroyed()) petWindow.close();
       if (!window.isDestroyed()) window.close();
     },

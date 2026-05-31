@@ -67,6 +67,11 @@ export type OpenDesignHostPdfPrintOptions = {
   deck?: boolean;
 };
 
+export type OpenDesignHostBrowserClearDataOptions = {
+  cookies?: boolean;
+  storage?: boolean;
+};
+
 export const OPEN_DESIGN_HOST_UPDATER_ACTIONS = Object.freeze({
   CHECK: "check",
   DOWNLOAD: "download",
@@ -203,6 +208,9 @@ export type OpenDesignHostUpdaterResult =
 export type OpenDesignHostUpdaterStatusListener = (status: OpenDesignHostUpdaterStatusSnapshot) => void;
 
 export type OpenDesignHostBridge = {
+  browser: {
+    clearData(options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult>;
+  };
   client: OpenDesignHostClient;
   pdf: {
     print(html: string, nonce?: string, options?: OpenDesignHostPdfPrintOptions): Promise<OpenDesignHostActionResult>;
@@ -259,6 +267,9 @@ export function isOpenDesignHostBridge(value: unknown): value is OpenDesignHostB
 
   const shell = value.shell;
   if (!isRecord(shell) || !hasFunction(shell, "openExternal") || !hasFunction(shell, "openPath")) return false;
+
+  const browser = value.browser;
+  if (!isRecord(browser) || !hasFunction(browser, "clearData")) return false;
 
   const project = value.project;
   if (
@@ -400,6 +411,19 @@ export async function openHostProjectPath(projectId: string, scope: OpenDesignHo
   if (host == null) return unavailable("Open Design host is not available");
   try {
     return await host.shell.openPath(projectId);
+  } catch (error) {
+    return unavailable(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function clearHostBrowserData(
+  options?: OpenDesignHostBrowserClearDataOptions,
+  scope: OpenDesignHostGlobalScope = globalThis,
+): Promise<OpenDesignHostActionResult> {
+  const host = getOpenDesignHost(scope);
+  if (host == null) return unavailable("Open Design host is not available");
+  try {
+    return await host.browser.clearData(options);
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : String(error));
   }
