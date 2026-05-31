@@ -158,7 +158,12 @@ Three additions, all behind a Claude-only capability gate:
 
 1. **Capture + persist** the Claude `session_id` (already parsed) keyed on
    `(conversationId, agentId)`, plus a `historyEpoch` snapshot and the run's
-   `workDir`. Update on run success.
+   `workDir`. Update on run success. `workDir` is a **resume guard**, not just
+   the spawn cwd: Claude Code sessions live under a per-cwd path, so
+   `claude --resume <id>` is only meaningful from the same working directory that
+   produced the session — `resolveResumeDecision()` rejects a pinned row whose
+   `workDir` differs from the current run's. This is the OD analog of multica's
+   "same runtime" guard.
 2. **Decide** at run start whether to resume: a pure `resolveResumeDecision()`
    helper that returns a `sessionId` only when every guard passes.
 3. **Apply**: when resuming, `buildArgs` appends `--resume <id>` and the prompt
@@ -178,8 +183,12 @@ turn N+1: resolveResumeDecision(conv, agent, epoch, forceFresh, caps)
 
 - `packages/contracts`: add `forceFreshSession?: boolean` to the chat/run
   request DTO; add `sessionResumed?: boolean` to run status/telemetry shape.
-- `apps/daemon/src/db.ts`: new `conversation_agent_session` table + queries;
-  stop stripping `session_id` so it reaches the pin path.
+- `apps/daemon/src/db.ts`: add `history_epoch INTEGER NOT NULL DEFAULT 0` to
+  `conversations` (the live conversation epoch, bumped on history edit / truncate
+  / retry); new `conversation_agent_session` table + queries (the table's
+  `historyEpoch` column records the epoch a session was *pinned under*, distinct
+  from the live `conversations.history_epoch`); stop stripping `session_id` so it
+  reaches the pin path.
 - `apps/daemon/src/runtimes/types.ts`: extend `RuntimeContext` with
   `resumeSessionId?: string`; add `supportsSessionResume` capability key.
 - `apps/daemon/src/runtimes/defs/claude.ts`: probe `--resume`; emit it when
@@ -213,10 +222,14 @@ turn N+1: resolveResumeDecision(conv, agent, epoch, forceFresh, caps)
    multica's per-(agent, issue) session. A dedicated small table avoids bloating
    `conversations` and makes the agent-switch guard a natural key miss.
 3. **`historyEpoch` guard.** The conversation carries a monotonic epoch bumped
-   whenever history is edited, truncated, or a turn is retried. The pinned
-   session records the epoch it was produced under; a mismatch invalidates
-   resume (Claude's immutable session would diverge from OD's edited history).
-   This is OD's addition over multica.
+   whenever history is edited, truncated, or a turn is retried. The live epoch is
+   the new `conversations.history_epoch` column (the web edit/retry path issues
+   the bump); the pinned `conversation_agent_session.historyEpoch` records the
+   epoch a session was produced under. At run start the daemon reads
+   `conversations.history_epoch` for the active conversation to form
+   `currentHistoryEpoch`, then `resolveResumeDecision()` compares it against the
+   pinned row; a mismatch invalidates resume (Claude's immutable session would
+   diverge from OD's edited history). This is OD's addition over multica.
 4. **Best-effort with guaranteed fallback.** If `claude --resume` exits early
    reporting an unknown/invalid session, retry the same turn once without
    `--resume` and with the full transcript. Worst case equals today.
@@ -255,6 +268,9 @@ per `AGENTS.md`:
   full transcript present.
 - **History-edit epoch guard.** Editing a prior turn bumps epoch → no `--resume`
   AND full transcript present.
+- **Work-dir guard.** A pinned session whose `workDir` differs from the current
+  run's (e.g. the conversation's project cwd moved) → no `--resume` AND full
+  transcript present.
 - **Runtime-rejection fallback.** Stub a `claude` that rejects `--resume` → the
   daemon retries WITHOUT `--resume` AND WITH the full transcript, and the run
   still succeeds.
@@ -278,7 +294,9 @@ function resolveResumeDecision(ctx): string | null {
   if (!hasPriorAssistantTurn) return null;
   const row = getConversationAgentSession(db, conversationId, agentId);
   if (!row || row.agentId !== agentId) return null;          // agent-switch guard
+  // currentHistoryEpoch is read from conversations.history_epoch at run start.
   if (row.historyEpoch !== currentHistoryEpoch) return null; // edit guard
+  if (row.workDir !== currentWorkDir) return null;           // cwd-scope guard
   return row.sessionId;
 }
 
