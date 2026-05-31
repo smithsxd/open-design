@@ -579,6 +579,10 @@
   gap: 6px;
   flex-shrink: 0;
 }
+.app-chrome-file-actions-before:has(> [data-app-chrome-file-actions='true']:empty),
+.app-chrome-file-actions:empty {
+  display: none;
+}
 .app-chrome-file-actions {
   display: inline-flex;
   align-items: center;
@@ -589,10 +593,22 @@
   margin-left: 4px;
 }
 .app-chrome-file-actions:not(:empty) + .app-chrome-actions,
-.app-chrome-file-actions-before:not(:empty) + .app-chrome-file-actions:empty + .app-chrome-actions {
+.app-chrome-file-actions-before:not(:has(> [data-app-chrome-file-actions='true']:empty)):not(:empty) + .app-chrome-file-actions + .app-chrome-actions {
+  position: relative;
   margin-left: 4px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+.app-chrome-file-actions:not(:empty) + .app-chrome-actions::before,
+.app-chrome-file-actions-before:not(:has(> [data-app-chrome-file-actions='true']:empty)):not(:empty) + .app-chrome-file-actions + .app-chrome-actions::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 1px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 82%, transparent);
+  transform: translateY(-50%);
 }
 .chrome-action {
   display: inline-flex;

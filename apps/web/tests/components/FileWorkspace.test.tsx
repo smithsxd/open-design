@@ -29,7 +29,22 @@ vi.mock('../../src/providers/registry', async () => {
 });
 
 vi.mock('../../src/components/DesignBrowserPanel', () => ({
-  DesignBrowserPanel: () => <div data-testid="design-browser-panel" />,
+  DesignBrowserPanel: ({
+    initialIconUrl,
+    initialTitle,
+    initialUrl,
+  }: {
+    initialIconUrl?: string;
+    initialTitle?: string;
+    initialUrl?: string;
+  }) => (
+    <div
+      data-testid="design-browser-panel"
+      data-initial-icon-url={initialIconUrl ?? ''}
+      data-initial-title={initialTitle ?? ''}
+      data-initial-url={initialUrl ?? ''}
+    />
+  ),
 }));
 
 const mockedFetchProjectFileText = vi.mocked(fetchProjectFileText);
@@ -873,6 +888,7 @@ describe('FileWorkspace add-module menu', () => {
   });
 
   it('adds a new browser tab every time the Browser module is selected', () => {
+    const onTabsStateChange = vi.fn();
     render(
       <FileWorkspace
         projectId="project-1"
@@ -882,7 +898,7 @@ describe('FileWorkspace add-module menu', () => {
         onRefreshFiles={vi.fn()}
         isDeck={false}
         tabsState={{ tabs: [], active: null }}
-        onTabsStateChange={vi.fn()}
+        onTabsStateChange={onTabsStateChange}
       />,
     );
 
@@ -914,6 +930,86 @@ describe('FileWorkspace add-module menu', () => {
     expect(browserPanels[0]!.className).not.toContain('active');
     expect(browserPanels[1]!.className).not.toContain('active');
     expect(browserPanels[2]!.className).toContain('active');
+    expect(onTabsStateChange).toHaveBeenLastCalledWith({
+      tabs: [],
+      active: '__browser__:3',
+      browserTabs: [
+        { id: '__browser__:1', insertAfter: '__design_files__', label: 'Browser' },
+        { id: '__browser__:2', insertAfter: '__browser__:1', label: 'Browser 2' },
+        { id: '__browser__:3', insertAfter: '__browser__:2', label: 'Browser 3' },
+      ],
+    });
+  });
+
+  it('restores persisted browser tabs with their active URL state', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{
+          tabs: [],
+          active: '__browser__:2',
+          browserTabs: [
+            {
+              id: '__browser__:2',
+              insertAfter: '__design_files__',
+              label: 'Browser 2',
+              title: 'SVG Repo',
+              url: 'https://www.svgrepo.com/',
+              iconUrl: 'https://www.svgrepo.com/favicon.ico',
+            },
+          ],
+        }}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    const restoredTab = screen.getByRole('tab', { name: /SVG Repo/ });
+    expect(restoredTab.getAttribute('aria-selected')).toBe('true');
+    const browserPanel = screen.getByTestId('design-browser-panel');
+    expect(browserPanel.dataset.initialUrl).toBe('https://www.svgrepo.com/');
+    expect(browserPanel.dataset.initialTitle).toBe('SVG Repo');
+    expect(browserPanel.dataset.initialIconUrl).toBe('https://www.svgrepo.com/favicon.ico');
+  });
+
+  it('persists browser-tab removal when a browser tab is closed', () => {
+    const onTabsStateChange = vi.fn();
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{
+          tabs: [],
+          active: '__browser__:1',
+          browserTabs: [
+            { id: '__browser__:1', insertAfter: '__design_files__', label: 'Browser' },
+          ],
+        }}
+        onTabsStateChange={onTabsStateChange}
+      />,
+    );
+
+    const restoredTab = screen.getByRole('tab', { name: /Browser/ });
+    const closeButton = restoredTab.querySelector<HTMLButtonElement>('.ws-tab-close');
+    expect(closeButton).not.toBeNull();
+    act(() => {
+      fireEvent.click(closeButton!);
+    });
+
+    expect(screen.queryByRole('tab', { name: /Browser/ })).toBeNull();
+    expect(screen.queryByTestId('design-browser-panel')).toBeNull();
+    expect(onTabsStateChange).toHaveBeenLastCalledWith({
+      tabs: [],
+      active: '__design_files__',
+    });
   });
 
   it('appends a new browser tab after existing workspace tabs', () => {

@@ -85,6 +85,9 @@ type WebviewFaviconEvent = Event & {
 };
 
 interface DesignBrowserPanelProps {
+  initialIconUrl?: string;
+  initialTitle?: string;
+  initialUrl?: string;
   projectId: string;
   onOpenFile: (name: string) => void;
   onRefreshFiles: () => Promise<void> | void;
@@ -102,6 +105,32 @@ const DESIGN_BROWSER_PARTITION = 'persist:open-design-design-browser';
 const HISTORY_LIMIT = 80;
 const HISTORY_SUGGESTION_LIMIT = 20;
 const warmedOrigins = new Set<string>();
+
+function initialBrowserState(initialUrl?: string, initialTitle?: string): {
+  addressValue: string;
+  navigationIndex: number;
+  navigationStack: BrowserNavigationEntry[];
+  url: string;
+} {
+  const url = initialUrl?.trim() && isHistoryUrl(initialUrl.trim())
+    ? initialUrl.trim()
+    : EMPTY_URL;
+  if (url === EMPTY_URL) {
+    return {
+      addressValue: '',
+      navigationIndex: -1,
+      navigationStack: [],
+      url,
+    };
+  }
+  const title = initialTitle?.trim() || labelFromUrl(url);
+  return {
+    addressValue: url,
+    navigationIndex: 0,
+    navigationStack: [{ title, url }],
+    url,
+  };
+}
 
 // The Reference Board catalogue. Order is intentional: the categories a working
 // designer reaches for most often (inspiration, real product UI) lead, followed
@@ -136,6 +165,7 @@ export const REFERENCE_GROUPS: ReferenceGroup[] = [
     title: 'Motion',
     sites: [
       { label: 'GSAP', url: 'https://gsap.com/', detail: 'Production animation engine and examples.' },
+      { label: 'Animations.dev', url: 'https://animations.dev/', detail: 'Animation patterns and interaction examples.' },
       { label: 'Transitions', url: 'https://transitions.dev/', detail: 'Transition patterns for modern interfaces.' },
       { label: 'Motion Sites', url: 'https://motionsites.ai/', detail: 'High-end motion and interaction references.' },
       { label: 'Motion.page Showcase', url: 'https://motion.page/showcase/', detail: 'Scroll and timeline animation inspiration.' },
@@ -169,6 +199,8 @@ export const REFERENCE_GROUPS: ReferenceGroup[] = [
     title: 'Icons',
     sites: [
       { label: 'The SVG', url: 'https://thesvg.org/', detail: 'SVG assets and vector references.' },
+      { label: 'SVG Logos', url: 'https://svglogos.dev/', detail: 'Clean SVG logos for product and brand mocks.' },
+      { label: 'Lobe Icons', url: 'https://icons.lobehub.com/', detail: 'Product and AI-brand icons for interfaces.' },
       { label: 'Iconify', url: 'https://icon-sets.iconify.design/', detail: '200k+ open-source icons in one place.' },
       { label: 'Lucide', url: 'https://lucide.dev/', detail: 'Clean, consistent open icon set.' },
       { label: 'Heroicons', url: 'https://heroicons.com/', detail: 'Tailwind-made SVG icons.' },
@@ -221,10 +253,29 @@ export const REFERENCE_GROUPS: ReferenceGroup[] = [
     id: 'systems',
     title: 'Design Systems',
     sites: [
+      { label: 'Impeccable Style', url: 'https://impeccable.style/', detail: 'High-quality style and interface references.' },
       { label: 'Styles Refero', url: 'https://styles.refero.design/', detail: 'Design style references and visual systems.' },
       { label: 'Brandfetch', url: 'https://brandfetch.com/', detail: 'Brand assets, logos, and identity.' },
       { label: 'Design Systems Repo', url: 'https://designsystemsrepo.com/', detail: 'Gallery of public design systems.' },
       { label: 'Startups Gallery', url: 'https://startups.gallery/', detail: 'Top startup product and brand references.' },
+    ],
+  },
+  {
+    id: 'components',
+    title: 'Components',
+    sites: [
+      { label: 'Base UI', url: 'https://base-ui.com/', detail: 'Unstyled accessible primitives for custom systems.' },
+      { label: 'shadcn/ui', url: 'https://ui.shadcn.com/', detail: 'Composable React components built on Radix and Tailwind.' },
+      { label: 'HeroUI', url: 'https://www.heroui.com/', detail: 'Modern React component library and design system.' },
+      { label: 'Radix UI', url: 'https://www.radix-ui.com/', detail: 'Accessible low-level UI primitives.' },
+      { label: 'React Aria', url: 'https://react-spectrum.adobe.com/react-aria/', detail: 'Accessible behavior primitives from Adobe.' },
+      { label: 'Headless UI', url: 'https://headlessui.com/', detail: 'Unstyled accessible components for Tailwind projects.' },
+      { label: 'MUI', url: 'https://mui.com/', detail: 'Material-based React component ecosystem.' },
+      { label: 'Mantine', url: 'https://mantine.dev/', detail: 'Full-featured React components and hooks.' },
+      { label: 'Chakra UI', url: 'https://chakra-ui.com/', detail: 'Accessible React components with theme tokens.' },
+      { label: 'Ant Design', url: 'https://ant.design/', detail: 'Enterprise component system and patterns.' },
+      { label: 'Ark UI', url: 'https://ark-ui.com/', detail: 'Headless components across modern frameworks.' },
+      { label: 'daisyUI', url: 'https://daisyui.com/', detail: 'Tailwind CSS component classes and themes.' },
     ],
   },
   {
@@ -244,8 +295,11 @@ export const REFERENCE_GROUPS: ReferenceGroup[] = [
     sites: [
       { label: 'Toolfolio', url: 'https://toolfolio.io/', detail: 'Design tools, resources, and collections.' },
       { label: 'GetDesign', url: 'https://getdesign.md/', detail: 'Curated design resources.' },
+      { label: 'Taste Skill', url: 'https://www.tasteskill.dev/', detail: 'Design taste training and critique references.' },
       { label: 'UI Goodies', url: 'https://www.uigoodies.com/', detail: 'Hand-picked design resources.' },
       { label: 'Sidebar', url: 'https://sidebar.io/', detail: 'Five design links, every day.' },
+      { label: 'Browser Harness', url: 'https://github.com/browser-use/browser-harness', detail: 'Browser automation harness for extraction tasks.' },
+      { label: 'Superset', url: 'https://github.com/superset-sh/superset', detail: 'Reference implementation for embedded browser workflows.' },
     ],
   },
 ];
@@ -323,12 +377,16 @@ const PAGE_BRIEF_SCRIPT = `(() => {
 })()`;
 
 export function DesignBrowserPanel({
+  initialIconUrl,
+  initialTitle,
+  initialUrl,
   projectId,
   onOpenFile,
   onPageInfoChange,
   onRefreshFiles,
 }: DesignBrowserPanelProps) {
   const desktopHostAvailable = isOpenDesignHostAvailable();
+  const initialState = initialBrowserState(initialUrl, initialTitle);
   // `loadUrl` is the navigation target bound to the <webview>/<iframe> `src`.
   // It changes ONLY on user-initiated navigation. `currentUrl` is the committed
   // location shown in the address bar and recorded in history, synced from the
@@ -336,13 +394,13 @@ export function DesignBrowserPanel({
   // tracked every committed URL, a server redirect (e.g. adding a trailing
   // slash) would mutate `src` mid-load and Electron would abort the in-flight
   // navigation (ERR_ABORTED -3), leaving the page blank.
-  const [loadUrl, setLoadUrl] = useState(EMPTY_URL);
-  const [currentUrl, setCurrentUrl] = useState(EMPTY_URL);
-  const [addressValue, setAddressValue] = useState('');
+  const [loadUrl, setLoadUrl] = useState(initialState.url);
+  const [currentUrl, setCurrentUrl] = useState(initialState.url);
+  const [addressValue, setAddressValue] = useState(initialState.addressValue);
   const [addressEditing, setAddressEditing] = useState(false);
   const [history, setHistory] = useState<BrowserHistoryEntry[]>(() => loadHistory(projectId));
-  const [navigationStack, setNavigationStack] = useState<BrowserNavigationEntry[]>([]);
-  const [navigationIndex, setNavigationIndex] = useState(-1);
+  const [navigationStack, setNavigationStack] = useState<BrowserNavigationEntry[]>(initialState.navigationStack);
+  const [navigationIndex, setNavigationIndex] = useState(initialState.navigationIndex);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -351,8 +409,10 @@ export function DesignBrowserPanel({
   const [savingAction, setSavingAction] = useState<'brief' | 'screenshot' | 'task' | null>(null);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const chromeRef = useRef<HTMLDivElement | null>(null);
-  const navigationStackRef = useRef<BrowserNavigationEntry[]>([]);
-  const navigationIndexRef = useRef(-1);
+  const restoredIconUrlRef = useRef(initialIconUrl?.trim() ?? '');
+  const restoredTitleRef = useRef(initialTitle?.trim() ?? '');
+  const navigationStackRef = useRef<BrowserNavigationEntry[]>(initialState.navigationStack);
+  const navigationIndexRef = useRef(initialState.navigationIndex);
   const pendingLoadTargetRef = useRef<string | null>(null);
   const canGoBack = navigationIndex > 0;
   const canGoForward = navigationIndex >= 0 && navigationIndex < navigationStack.length - 1;
@@ -369,15 +429,27 @@ export function DesignBrowserPanel({
 
   useEffect(() => {
     setHistory(loadHistory(projectId));
-    setLoadUrl(EMPTY_URL);
-    setCurrentUrl(EMPTY_URL);
-    setAddressValue('');
+    const nextInitialState = initialBrowserState(initialUrl, initialTitle);
+    setLoadUrl(nextInitialState.url);
+    setCurrentUrl(nextInitialState.url);
+    setAddressValue(nextInitialState.addressValue);
     setAddressEditing(false);
-    setNavigationStack([]);
-    setNavigationIndex(-1);
-    navigationStackRef.current = [];
-    navigationIndexRef.current = -1;
+    setNavigationStack(nextInitialState.navigationStack);
+    setNavigationIndex(nextInitialState.navigationIndex);
+    navigationStackRef.current = nextInitialState.navigationStack;
+    navigationIndexRef.current = nextInitialState.navigationIndex;
     pendingLoadTargetRef.current = null;
+    if (isHistoryUrl(nextInitialState.url)) {
+      commitHistory(
+        nextInitialState.url,
+        { iconUrl: initialIconUrl, title: initialTitle },
+        { countVisit: false },
+      );
+    }
+    // `initial*` props are mount-time tab restore inputs. During normal
+    // navigation the parent updates them from onPageInfoChange; that must not
+    // reset the live webview.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   useEffect(() => {
@@ -673,8 +745,8 @@ export function DesignBrowserPanel({
   }, [addressEditing, addressValue, currentUrl, history]);
 
   const pageHistoryEntry = history.find((entry) => sameUrl(entry.url, currentUrl));
-  const pageTitle = pageHistoryEntry?.title || labelFromUrl(currentUrl);
-  const pageIconUrl = pageHistoryEntry?.iconUrl || faviconUrl(currentUrl);
+  const pageTitle = pageHistoryEntry?.title || restoredTitleRef.current || labelFromUrl(currentUrl);
+  const pageIconUrl = pageHistoryEntry?.iconUrl || restoredIconUrlRef.current || faviconUrl(currentUrl);
   const addressDisplayParts = addressEditing
     ? { url: '' }
     : formatAddressDisplayParts(currentUrl, pageTitle);

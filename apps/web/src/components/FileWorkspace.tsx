@@ -40,6 +40,7 @@ import {
   type LiveArtifactEventItem,
   type LiveArtifactWorkspaceEntry,
   type OpenTabsState,
+  type ProjectBrowserWorkspaceTab,
   type PreviewComment,
   type PreviewCommentTarget,
   type DesignSystemSummary,
@@ -132,14 +133,7 @@ const DESIGN_SYSTEM_TAB = '__design_system__';
 const BROWSER_TAB_PREFIX = '__browser__:';
 const ADD_MENU_WIDTH = 260;
 type TabDropEdge = 'before' | 'after';
-interface BrowserWorkspaceTab {
-  iconUrl?: string;
-  id: string;
-  insertAfter?: string | null;
-  label: string;
-  title?: string;
-  url?: string;
-}
+type BrowserWorkspaceTab = ProjectBrowserWorkspaceTab;
 type WorkspaceOrderedTab =
   | { id: string; kind: 'browser'; browserTab: BrowserWorkspaceTab }
   | { id: string; kind: 'file'; name: string };
@@ -285,7 +279,9 @@ export function FileWorkspace({
   const [sketches, setSketches] = useState<Record<string, SketchState>>({});
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [projectFolders, setProjectFolders] = useState<ProjectFolder[]>([]);
-  const [browserTabs, setBrowserTabs] = useState<BrowserWorkspaceTab[]>([]);
+  const [browserTabs, setBrowserTabs] = useState<BrowserWorkspaceTab[]>(
+    () => browserTabsFromState(tabsState.browserTabs),
+  );
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [tabsOverflowing, setTabsOverflowing] = useState(false);
   const [addMenuPos, setAddMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -340,6 +336,12 @@ export function FileWorkspace({
     setAddMenuOpen(false);
   }, [projectId]);
 
+  useEffect(() => {
+    const nextBrowserTabs = browserTabsFromState(tabsState.browserTabs);
+    setBrowserTabs(nextBrowserTabs);
+    browserTabSequenceRef.current = maxBrowserTabSequence(nextBrowserTabs);
+  }, [tabsState.browserTabs]);
+
   // The add-module menu is portaled to <body> so the tab strip's overflow
   // clipping (overflow-x: auto turns .ws-tabs-bar into a scroll container that
   // also clips vertically) cannot hide it. Position it manually from the button
@@ -379,9 +381,20 @@ export function FileWorkspace({
     };
   }, [addMenuOpen]);
 
+  function workspaceTabsState(
+    tabs: string[],
+    active: string | null,
+    nextBrowserTabs = browserTabs,
+  ): OpenTabsState {
+    const state: OpenTabsState = { tabs, active };
+    if (nextBrowserTabs.length > 0) state.browserTabs = nextBrowserTabs;
+    return state;
+  }
+
   function setPersistedActive(name: string | null) {
-    setActiveTab(name ?? defaultRootTab);
-    onTabsStateChange({ tabs: persistedTabs, active: name });
+    const nextActive = name ?? defaultRootTab;
+    setActiveTab(nextActive);
+    onTabsStateChange(workspaceTabsState(persistedTabs, name));
   }
 
   function openBrowserTab() {
@@ -394,8 +407,10 @@ export function FileWorkspace({
       insertAfter: anchor,
       label: nextIndex === 1 ? 'Browser' : `Browser ${nextIndex}`,
     };
-    setBrowserTabs((current) => [...current, nextTab]);
+    const nextTabs = [...browserTabs, nextTab];
+    setBrowserTabs(nextTabs);
     setActiveTab(nextTab.id);
+    onTabsStateChange(workspaceTabsState(persistedTabs, nextTab.id, nextTabs));
     setAddMenuOpen(false);
   }
 
@@ -403,47 +418,52 @@ export function FileWorkspace({
     const closingIndex = browserTabs.findIndex((tab) => tab.id === tabId);
     const nextTabs = browserTabs.filter((tab) => tab.id !== tabId);
     setBrowserTabs(nextTabs);
+    const nextActive =
+      activeTab === tabId
+        ? nextTabs[Math.min(Math.max(closingIndex, 0), nextTabs.length - 1)]?.id ?? DESIGN_FILES_TAB
+        : tabsState.active === tabId
+          ? DESIGN_FILES_TAB
+          : tabsState.active;
     if (activeTab === tabId) {
-      const nextActiveBrowser =
-        nextTabs[Math.min(Math.max(closingIndex, 0), nextTabs.length - 1)] ?? null;
-      setActiveTab(nextActiveBrowser?.id ?? DESIGN_FILES_TAB);
+      setActiveTab(nextActive ?? DESIGN_FILES_TAB);
     }
+    onTabsStateChange(workspaceTabsState(persistedTabs, nextActive, nextTabs));
   }
 
   const updateBrowserTabInfo = useCallback((tabId: string, info: BrowserPageInfo) => {
     const nextUrl = info.url.trim();
     const nextIconUrl = info.iconUrl?.trim() ?? '';
-    setBrowserTabs((current) => {
-      let changed = false;
-      const nextTabs = current.map((tab) => {
-        if (tab.id !== tabId) return tab;
-        const nextTitle = nextUrl
-          ? info.title.trim() || labelFromUrl(nextUrl)
-          : tab.label;
-        const normalizedUrl = nextUrl === 'about:blank' ? '' : nextUrl;
-        if (
-          tab.title === nextTitle
-          && (tab.url ?? '') === normalizedUrl
-          && (tab.iconUrl ?? '') === nextIconUrl
-        ) {
-          return tab;
-        }
-        changed = true;
-        const nextTab: BrowserWorkspaceTab = {
-          ...tab,
-          title: nextTitle,
-          url: normalizedUrl,
-        };
-        if (nextIconUrl) {
-          nextTab.iconUrl = nextIconUrl;
-        } else {
-          delete nextTab.iconUrl;
-        }
-        return nextTab;
-      });
-      return changed ? nextTabs : current;
+    let changed = false;
+    const nextTabs = browserTabs.map((tab) => {
+      if (tab.id !== tabId) return tab;
+      const nextTitle = nextUrl
+        ? info.title.trim() || labelFromUrl(nextUrl)
+        : tab.label;
+      const normalizedUrl = nextUrl === 'about:blank' ? '' : nextUrl;
+      if (
+        tab.title === nextTitle
+        && (tab.url ?? '') === normalizedUrl
+        && (tab.iconUrl ?? '') === nextIconUrl
+      ) {
+        return tab;
+      }
+      changed = true;
+      const nextTab: BrowserWorkspaceTab = {
+        ...tab,
+        title: nextTitle,
+        url: normalizedUrl,
+      };
+      if (nextIconUrl) {
+        nextTab.iconUrl = nextIconUrl;
+      } else {
+        delete nextTab.iconUrl;
+      }
+      return nextTab;
     });
-  }, []);
+    if (!changed) return;
+    setBrowserTabs(nextTabs);
+    onTabsStateChange(workspaceTabsState(persistedTabs, activeTab, nextTabs));
+  }, [activeTab, browserTabs, onTabsStateChange, persistedTabs]);
 
   function activatePending(name: string) {
     // Pending sketches are not in tabsState.tabs — flip the local
@@ -476,20 +496,20 @@ export function FileWorkspace({
     if (!openRequest) return;
     const name = openRequest.name;
     if (!name) return;
-    onTabsStateChange({
-      tabs: persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
-      active: name,
-    });
+    onTabsStateChange(workspaceTabsState(
+      persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
+      name,
+    ));
     setActiveTab(name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
 
   function openFile(name: string) {
     setUploadError(null);
-    onTabsStateChange({
-      tabs: persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
-      active: name,
-    });
+    onTabsStateChange(workspaceTabsState(
+      persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
+      name,
+    ));
     setActiveTab(name);
   }
 
@@ -505,7 +525,7 @@ export function FileWorkspace({
     const nextTabs = withoutClosed.includes(openName)
       ? withoutClosed
       : [...withoutClosed, openName];
-    onTabsStateChange({ tabs: nextTabs, active: openName });
+    onTabsStateChange(workspaceTabsState(nextTabs, openName));
     setActiveTab(openName);
   }
 
@@ -530,7 +550,7 @@ export function FileWorkspace({
       tabsState.active === name
         ? nextTabs[nextTabs.length - 1] ?? null
         : tabsState.active;
-    onTabsStateChange({ tabs: nextTabs, active: nextActive });
+    onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
     setActiveTab(nextActive ?? DESIGN_FILES_TAB);
     setSketches((curr) => {
       const next = { ...curr };
@@ -554,7 +574,7 @@ export function FileWorkspace({
     if (targetIndex === -1) return;
     nextTabs.splice(edge === 'after' ? targetIndex + 1 : targetIndex, 0, draggedName);
     if (arraysEqual(nextTabs, persistedTabs)) return;
-    onTabsStateChange({ tabs: nextTabs, active: tabsState.active });
+    onTabsStateChange(workspaceTabsState(nextTabs, tabsState.active));
   }
 
   function clearTabDragState() {
@@ -724,7 +744,7 @@ export function FileWorkspace({
         // User is viewing the file being deleted: fall back to another
         // open tab (or the Design Files panel if none remain).
         const nextActive = nextTabs[nextTabs.length - 1] ?? null;
-        onTabsStateChange({ tabs: nextTabs, active: nextActive });
+        onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
         setActiveTab(nextActive ?? DESIGN_FILES_TAB);
       } else {
         // Deletion was triggered from the Design Files panel (or another
@@ -734,7 +754,7 @@ export function FileWorkspace({
         // when it points at the deleted file so we don't leave a dangling
         // pointer behind.
         const nextActive = tabsState.active === name ? null : tabsState.active;
-        onTabsStateChange({ tabs: nextTabs, active: nextActive });
+        onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
       }
       setSketches((curr) => {
         const next = { ...curr };
@@ -760,12 +780,12 @@ export function FileWorkspace({
       const nextTabs = persistedTabs.filter((n) => !deletedSet.has(n));
       if (activeTab && deletedSet.has(activeTab)) {
         const nextActive = nextTabs[nextTabs.length - 1] ?? null;
-        onTabsStateChange({ tabs: nextTabs, active: nextActive });
+        onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
         setActiveTab(nextActive ?? DESIGN_FILES_TAB);
       } else {
         const nextActive =
           tabsState.active && deletedSet.has(tabsState.active) ? null : tabsState.active;
-        onTabsStateChange({ tabs: nextTabs, active: nextActive });
+        onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
       }
       setSketches((curr) => {
         const next = { ...curr };
@@ -795,7 +815,7 @@ export function FileWorkspace({
 
     const nextTabs = persistedTabs.map((name) => (name === oldName ? renamed.name : name));
     const nextActive = tabsState.active === oldName ? renamed.name : tabsState.active;
-    onTabsStateChange({ tabs: nextTabs, active: nextActive });
+    onTabsStateChange(workspaceTabsState(nextTabs, nextActive));
     if (activeTab === oldName) setActiveTab(renamed.name);
 
     setSketches((curr) => {
@@ -923,10 +943,10 @@ export function FileWorkspace({
         },
       }));
       // Promote the previously-pending sketch into the persisted tab list.
-      onTabsStateChange({
-        tabs: persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
-        active: name,
-      });
+      onTabsStateChange(workspaceTabsState(
+        persistedTabs.includes(name) ? persistedTabs : [...persistedTabs, name],
+        name,
+      ));
       setActiveTab(name);
       await onRefreshFiles();
       return true;
@@ -1049,7 +1069,7 @@ export function FileWorkspace({
               aria-selected={activeTab === DESIGN_SYSTEM_TAB}
               tabIndex={0}
               data-testid="design-system-project-tab"
-              onClick={() => setActiveTab(DESIGN_SYSTEM_TAB)}
+              onClick={() => setPersistedActive(DESIGN_SYSTEM_TAB)}
               title="Design System"
             >
               <span className="tab-icon" aria-hidden>
@@ -1065,7 +1085,7 @@ export function FileWorkspace({
             aria-selected={activeTab === DESIGN_FILES_TAB}
             tabIndex={0}
             data-testid="design-files-tab"
-            onClick={() => setActiveTab(DESIGN_FILES_TAB)}
+            onClick={() => setPersistedActive(DESIGN_FILES_TAB)}
             title={t('workspace.designFiles')}
           >
             <span className="tab-icon" aria-hidden>
@@ -1088,7 +1108,7 @@ export function FileWorkspace({
                   meta={browserMeta}
                   title={browserUrl ? `${browserTitle}\n${browserUrl}` : browserTitle}
                   active={activeTab === browserTab.id}
-                  onActivate={() => setActiveTab(browserTab.id)}
+                  onActivate={() => setPersistedActive(browserTab.id)}
                   onClose={() => closeBrowserTab(browserTab.id)}
                   kind="browser"
                 />
@@ -1211,12 +1231,15 @@ export function FileWorkspace({
         ) : null}
         {browserTabs.map((browserTab) => (
           <div
-            key={browserTab.id}
+            key={`${projectId}:${browserTab.id}`}
             className={`ws-browser-panel ${activeTab === browserTab.id ? 'active' : ''}`}
             aria-hidden={activeTab === browserTab.id ? undefined : true}
           >
             <DesignBrowserPanel
               projectId={projectId}
+              initialIconUrl={browserTab.iconUrl}
+              initialTitle={browserTab.title}
+              initialUrl={browserTab.url}
               onRefreshFiles={onRefreshFiles}
               onOpenFile={openFile}
               onPageInfoChange={(info) => updateBrowserTabInfo(browserTab.id, info)}
@@ -2902,6 +2925,39 @@ function kindIconName(
 
 function isBrowserTabId(tabId: string): boolean {
   return tabId.startsWith(BROWSER_TAB_PREFIX);
+}
+
+function browserTabsFromState(value: OpenTabsState['browserTabs']): BrowserWorkspaceTab[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const tabs: BrowserWorkspaceTab[] = [];
+  for (const item of value) {
+    if (!item || typeof item.id !== 'string' || seen.has(item.id)) continue;
+    if (!item.id.startsWith(BROWSER_TAB_PREFIX)) continue;
+    const label = item.label?.trim() || 'Browser';
+    const tab: BrowserWorkspaceTab = {
+      id: item.id,
+      label,
+    };
+    if (item.insertAfter === null) tab.insertAfter = null;
+    else if (typeof item.insertAfter === 'string') tab.insertAfter = item.insertAfter;
+    if (item.title?.trim()) tab.title = item.title.trim();
+    if (item.url?.trim()) tab.url = item.url.trim();
+    if (item.iconUrl?.trim()) tab.iconUrl = item.iconUrl.trim();
+    seen.add(item.id);
+    tabs.push(tab);
+  }
+  return tabs;
+}
+
+function maxBrowserTabSequence(tabs: BrowserWorkspaceTab[]): number {
+  let max = 0;
+  for (const tab of tabs) {
+    const suffix = tab.id.slice(BROWSER_TAB_PREFIX.length);
+    const value = Number.parseInt(suffix, 10);
+    if (Number.isFinite(value)) max = Math.max(max, value);
+  }
+  return max;
 }
 
 function lastWorkspaceTabId(tabs: WorkspaceOrderedTab[]): string | null {

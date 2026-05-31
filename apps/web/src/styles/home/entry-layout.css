@@ -71,18 +71,10 @@
   padding-bottom: 4px;
 }
 .entry-nav-rail__divider {
-  width: 28px;
-  height: 1px;
-  background: var(--border);
-  margin: 3px 0;
-  flex-shrink: 0;
+  display: none;
 }
 .entry-nav-rail__logo-divider {
-  width: 24px;
-  height: 1px;
-  background: var(--border);
-  margin: 5px 0 9px;
-  flex-shrink: 0;
+  display: none;
 }
 
 /* ---------- Right-side hover tooltip (rail items only) ----------

@@ -358,6 +358,7 @@ describe('REFERENCE_GROUPS catalogue', () => {
       '3d',
       'mockups',
       'systems',
+      'components',
       'guidelines',
       'tools',
     ]);
@@ -385,6 +386,37 @@ describe('REFERENCE_GROUPS catalogue', () => {
   it('keeps REFERENCE_TOTAL in sync with the catalogue', () => {
     const counted = REFERENCE_GROUPS.reduce((sum, group) => sum + group.sites.length, 0);
     expect(REFERENCE_TOTAL).toBe(counted);
+  });
+
+  it('includes the handoff and component-library reference URLs', () => {
+    const urls = new Set(REFERENCE_GROUPS.flatMap((group) => group.sites.map((site) => site.url)));
+    expect(Array.from(urls)).toEqual(expect.arrayContaining([
+      'https://thesvg.org/',
+      'https://unsplash.com/',
+      'https://motionsites.ai/',
+      'https://motion.page/showcase/',
+      'https://styles.refero.design/',
+      'https://brandfetch.com/',
+      'https://gsap.com/',
+      'https://transitions.dev/',
+      'https://fonts.google.com/',
+      'https://animography.net/',
+      'https://toolfolio.io/',
+      'https://www.whirrls.com/',
+      'https://startups.gallery/',
+      'https://www.worldindots.com/',
+      'https://getdesign.md/',
+      'https://github.com/browser-use/browser-harness',
+      'https://github.com/superset-sh/superset',
+      'https://svglogos.dev/',
+      'https://icons.lobehub.com/',
+      'https://animations.dev/',
+      'https://impeccable.style/',
+      'https://www.tasteskill.dev/',
+      'https://base-ui.com/',
+      'https://ui.shadcn.com/',
+      'https://www.heroui.com/',
+    ]));
   });
 });
 

@@ -265,6 +265,8 @@ export function DesignFilesPanel({
   const [currentDir, setCurrentDir] = useState<string>('');
   const [optimisticFolderPaths, setOptimisticFolderPaths] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
 
   const folderPaths = useMemo(() => {
@@ -456,6 +458,12 @@ export function DesignFilesPanel({
   useEffect(() => {
     setPage(0);
   }, [normalizedSearchQuery]);
+
+  useEffect(() => {
+    if (!searchExpanded) return;
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, [searchExpanded]);
 
   // Drop any selected files that fall outside the active filter. Without
   // this, bulk delete / download would silently operate on rows the user
@@ -1243,9 +1251,7 @@ export function DesignFilesPanel({
           {t('designFiles.groupByModified')}
         </button>
       </div>
-    ) : (
-      <span className="df-controls-spacer" aria-hidden="true" />
-    );
+    ) : null;
 
   const kindFilterControl =
     files.length > 0 && availableKinds.length > 1 ? (
@@ -1372,24 +1378,70 @@ export function DesignFilesPanel({
             </div>
           ) : null}
           <div className="df-controls-row">
-            <div className="df-controls-primary">
-              {refreshControl}
-              <label className="df-search-control">
-                <Icon name="search" size={13} />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={t('designFiles.searchPlaceholder')}
-                  aria-label={t('designFiles.searchPlaceholder')}
-                />
-              </label>
-              <div className="df-controls-toggles">
-                {groupToggle}
-                {kindFilterControl}
+            <div className="df-controls-topline">
+              <div className="df-controls-primary">
+                {refreshControl}
+                <div
+                  className={`df-search-control${searchExpanded ? ' is-expanded' : ''}${searchQuery ? ' has-value' : ''}`}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                      setSearchExpanded(false);
+                    }
+                  }}
+                >
+                  {searchExpanded ? (
+                    <>
+                      <Icon name="search" size={13} />
+                      <input
+                        ref={searchInputRef}
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            if (searchQuery) setSearchQuery('');
+                            else setSearchExpanded(false);
+                          }
+                        }}
+                        placeholder={t('designFiles.searchPlaceholder')}
+                        aria-label={t('designFiles.searchPlaceholder')}
+                      />
+                      {searchQuery ? (
+                        <button
+                          type="button"
+                          className="df-search-clear"
+                          onClick={() => {
+                            setSearchQuery('');
+                            searchInputRef.current?.focus();
+                          }}
+                          aria-label={t('designFiles.filterClear')}
+                          title={t('designFiles.filterClear')}
+                        >
+                          <Icon name="close" size={11} />
+                        </button>
+                      ) : null}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="df-search-icon-trigger"
+                      onClick={() => setSearchExpanded(true)}
+                      aria-label={t('designFiles.searchPlaceholder')}
+                      title={t('designFiles.searchPlaceholder')}
+                    >
+                      <Icon name="search" size={14} />
+                      {searchQuery ? <span className="df-search-active-dot" aria-hidden /> : null}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="df-controls-actions">
+                {fileActions}
               </div>
             </div>
-            <div className="df-controls-actions">
-              {fileActions}
+            <div className="df-controls-toggles">
+              {groupToggle}
+              {kindFilterControl}
             </div>
           </div>
           {currentDir !== '' ? (
