@@ -122,6 +122,11 @@
   background: color-mix(in srgb, var(--bg-subtle) 72%, var(--bg-panel));
 }
 
+.deploy-social-share.is-protected {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent-tint) 36%, var(--bg-panel));
+}
+
 .deploy-social-share__head {
   display: flex;
   align-items: center;
@@ -156,6 +161,12 @@
 
 .deploy-social-share .hint {
   margin: 0;
+}
+
+.deploy-social-share__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 @media (max-width: 520px) {

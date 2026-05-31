@@ -929,6 +929,21 @@
   max-height: calc(100vh - 32px);
   overflow: auto;
 }
+.deploy-flow-modal.modal {
+  max-height: min(860px, calc(100vh - 48px));
+  max-height: min(860px, calc(100dvh - 48px));
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.deploy-flow-modal__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px;
+  scrollbar-width: thin;
+}
 .image-export-modal.modal {
   width: min(430px, calc(100vw - 32px));
   gap: 0;

@@ -6487,10 +6487,28 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     providerLabel: t(option.labelKey),
     url: deploymentsByProvider[option.id]?.url?.trim() || '',
   })).filter((item) => item.url);
+  const deployedEntries = DEPLOY_PROVIDER_OPTIONS
+    .map((option) => deploymentsByProvider[option.id])
+    .filter((item): item is WebDeploymentInfo => Boolean(item?.url?.trim()));
+  const socialShareBlockedDeployment =
+    deployedEntries.find((item) => deployResultState(item.status) === 'protected' && !publicShareUrlForDeployment(item)) ??
+    deployedEntries.find((item) => !publicShareUrlForDeployment(item)) ??
+    null;
+  const socialShareBlockedState = socialShareBlockedDeployment
+    ? deployResultState(socialShareBlockedDeployment.status)
+    : null;
   const shareableDeploymentUrl =
     DEPLOY_PROVIDER_OPTIONS.map((option) => deploymentsByProvider[option.id])
       .map((item) => publicShareUrlForDeployment(item))
       .find(Boolean) ?? '';
+  const socialShareDisplayUrl =
+    shareableDeploymentUrl || socialShareBlockedDeployment?.url?.trim() || activeDeployedUrl;
+  const socialShareUnavailableMessage =
+    socialShareBlockedState === 'protected'
+      ? t('fileViewer.deployLinkProtected')
+      : socialShareBlockedState === 'delayed'
+        ? t('fileViewer.deployLinkDelayed')
+        : t('socialShare.deployFirst');
   const projectSocialShareRequest = useMemo<SocialShareRequest | null>(() => {
     if (!shareableDeploymentUrl) return null;
     const title = t('socialShare.projectTitle', { title: exportTitle });
@@ -6531,6 +6549,14 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     };
   }, [projectSocialShareRequest]);
   const activeProjectSocialShare = projectSocialShare ?? projectSocialShareFallback;
+  const socialShareMenuLabel =
+    activeProjectSocialShare
+      ? t('socialShare.projectSection')
+      : socialShareBlockedState === 'protected'
+        ? t('fileViewer.deployLinkProtectedLabel')
+        : socialShareBlockedState === 'delayed'
+          ? t('fileViewer.deployLinkPreparingLabel')
+          : t('socialShare.deployFirst');
   const deployButtonLabel =
     deployPhase === 'deploying'
       ? t('fileViewer.deployingToProvider', { provider: deployProviderLabel })
@@ -7028,11 +7054,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                         size={15}
                       />
                     </span>
-                    <span>
-                      {activeProjectSocialShare
-                        ? t('socialShare.projectSection')
-                        : t('socialShare.deployFirst')}
-                    </span>
+                    <span>{socialShareMenuLabel}</span>
                   </button>
                   <div className="share-menu-divider" />
                   <div className="share-menu-section-label" role="presentation">
@@ -7661,25 +7683,26 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       {deployModalOpen ? (
         <div className="modal-backdrop" role="presentation">
           <div className="modal deploy-modal deploy-flow-modal" role="dialog" aria-modal="true">
-            <div className="modal-head">
-              <div className="kicker">{deployProviderLabel}</div>
-              <h2>{t('fileViewer.deployToProvider', { provider: deployProviderLabel })}</h2>
-              <p className="subtitle">{t('fileViewer.deployModalSubtitle')}</p>
-            </div>
-            <div className="deploy-form">
-              <div className={`deploy-social-share${activeProjectSocialShare ? '' : ' is-locked'}`}>
+            <div className="deploy-flow-modal__scroll">
+              <div className="modal-head">
+                <div className="kicker">{deployProviderLabel}</div>
+                <h2>{t('fileViewer.deployToProvider', { provider: deployProviderLabel })}</h2>
+                <p className="subtitle">{t('fileViewer.deployModalSubtitle')}</p>
+              </div>
+              <div className="deploy-form">
+              <div className={`deploy-social-share${activeProjectSocialShare ? '' : ' is-locked'}${socialShareBlockedState ? ` is-${socialShareBlockedState}` : ''}`}>
                 <div className="deploy-social-share__head">
                   <div className="deploy-social-share__label">
                     {t('socialShare.projectSection')}
                   </div>
-                  {shareableDeploymentUrl ? (
+                  {socialShareDisplayUrl ? (
                     <a
                       className="deploy-social-share__url"
-                      href={shareableDeploymentUrl}
+                      href={socialShareDisplayUrl}
                       target="_blank"
                       rel="noreferrer noopener"
                     >
-                      {shareableDeploymentUrl}
+                      {socialShareDisplayUrl}
                     </a>
                   ) : null}
                 </div>
@@ -7689,7 +7712,37 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                     onAfterShare={() => setDeployModalOpen(false)}
                   />
                 ) : (
-                  <p className="hint">{t('socialShare.deployFirst')}</p>
+                  <>
+                    <p className="hint">{socialShareUnavailableMessage}</p>
+                    {socialShareBlockedDeployment?.url ? (
+                      <div className="deploy-social-share__actions">
+                        <button
+                          type="button"
+                          className="viewer-action"
+                          onClick={() => {
+                            void copyDeployLink(socialShareBlockedDeployment.url);
+                          }}
+                        >
+                          <Icon name="copy" size={14} />
+                          <span>{copyDeployLabel(socialShareBlockedDeployment.url)}</span>
+                        </button>
+                        {activeDeployment?.id === socialShareBlockedDeployment.id ? (
+                          <button
+                            type="button"
+                            className="viewer-action"
+                            disabled={deployPhase === 'preparing-link'}
+                            onClick={() => {
+                              void retryDeploymentLink();
+                            }}
+                          >
+                            {deployPhase === 'preparing-link'
+                              ? t('fileViewer.preparingPublicLink')
+                              : t('fileViewer.retryLink')}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </div>
               <label className="deploy-provider-field">
@@ -7921,6 +7974,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                   </div>
                 </div>
               ) : null}
+              </div>
             </div>
             <div className="modal-foot">
               <button

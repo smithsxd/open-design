@@ -18,6 +18,7 @@ import {
   loadHistory,
   normalizeBrowserAddress,
   pageBriefMarkdown,
+  referenceIconUrl,
   sameUrl,
   saveHistory,
 } from '../../src/components/DesignBrowserPanel';
@@ -152,6 +153,34 @@ describe('faviconUrl', () => {
 
   it('skips non-http urls', () => {
     expect(faviconUrl('file:///Users/me/page.html')).toBeUndefined();
+  });
+});
+
+describe('referenceIconUrl', () => {
+  it('routes a reference site through the favicon service with its hostname', () => {
+    expect(referenceIconUrl('https://dribbble.com/')).toBe(
+      'https://www.google.com/s2/favicons?sz=64&domain=dribbble.com',
+    );
+  });
+
+  it('preserves subdomains and accepts a custom size', () => {
+    expect(referenceIconUrl('https://styles.refero.design/', 32)).toBe(
+      'https://www.google.com/s2/favicons?sz=32&domain=styles.refero.design',
+    );
+  });
+
+  it('returns a resolvable icon for every catalogued reference site', () => {
+    for (const group of REFERENCE_GROUPS) {
+      for (const site of group.sites) {
+        expect(referenceIconUrl(site.url)).toMatch(
+          /^https:\/\/www\.google\.com\/s2\/favicons\?sz=64&domain=/,
+        );
+      }
+    }
+  });
+
+  it('skips non-http urls so the globe fallback still applies', () => {
+    expect(referenceIconUrl('file:///Users/me/page.html')).toBeUndefined();
   });
 });
 

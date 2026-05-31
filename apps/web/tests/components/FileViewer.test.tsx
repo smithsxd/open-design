@@ -1714,6 +1714,73 @@ describe('FileViewer SVG artifacts', () => {
     expect(screen.getAllByText('https://vercel.example').length).toBeGreaterThan(0);
   });
 
+  it('explains protected deployments instead of showing the deploy-first social share state', async () => {
+    const file = baseFile({
+      name: 'index.html',
+      path: 'index.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Page',
+        entry: 'index.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/projects/project-1/deployments') {
+        return new Response(JSON.stringify({
+          deployments: [
+            {
+              id: 'vercel-deploy',
+              projectId: 'project-1',
+              fileName: 'index.html',
+              providerId: 'vercel-self',
+              url: 'https://protected.vercel.example',
+              deploymentCount: 1,
+              target: 'preview',
+              status: 'protected',
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ],
+        }), { status: 200 });
+      }
+      if (url === '/api/deploy/config?providerId=vercel-self') {
+        return new Response(JSON.stringify({
+          providerId: 'vercel-self',
+          configured: true,
+          tokenMask: 'saved-token',
+          teamId: '',
+          teamSlug: '',
+          target: 'preview',
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }));
+
+    render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={file}
+        liveHtml="<html><body><h1>Hello</h1></body></html>"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    const socialShareItem = await screen.findByRole('menuitem', {
+      name: /deployment protection enabled/i,
+    });
+    fireEvent.click(socialShareItem);
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'X' })).toBeNull();
+    expect(screen.getAllByText(/requiring authentication/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('https://protected.vercel.example').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /copy link/i }).length).toBeGreaterThan(0);
+  });
+
   it('renders unsafe SVG source as escaped text instead of executable markup', () => {
     const file = baseFile({ name: 'unsafe.svg', path: 'unsafe.svg', mime: 'image/svg+xml' });
     const unsafeSource = [

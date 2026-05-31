@@ -649,7 +649,7 @@ export function DesignBrowserPanel({
       group.sites.map((site) => ({
         detail: `${group.title} - ${site.detail}`,
         id: `site:${site.url}`,
-        iconUrl: faviconUrl(site.url),
+        iconUrl: referenceIconUrl(site.url),
         label: site.label,
         type: 'Reference' as const,
         url: site.url,
@@ -1222,7 +1222,7 @@ function DesignBrowserStart({
                       <BrowserSiteIcon
                         className="db-reference-icon"
                         fallback="globe"
-                        iconUrl={faviconUrl(site.url)}
+                        iconUrl={referenceIconUrl(site.url)}
                       />
                       <span className="db-reference-title">
                         <span>{site.label}</span>
@@ -1377,6 +1377,27 @@ export function faviconUrl(url: string): string | undefined {
   if (!isHttpLikeUrl(url)) return undefined;
   try {
     return new URL('/favicon.ico', new URL(url).origin).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve a reliable, colored favicon for a curated reference site.
+ *
+ * The Reference Board lists well-known public design sites, and many of them do
+ * not serve a usable icon at `/favicon.ico` (wrong path, 404, or non-image), so
+ * {@link faviconUrl} falls back to a flat grey globe for most of them. Routing
+ * the request through a favicon service returns a real, correctly-sized brand
+ * icon for essentially every domain, so the board shows actual logos instead.
+ * Returns `undefined` for non-http(s) URLs so the globe fallback still applies.
+ */
+export function referenceIconUrl(url: string, size = 64): string | undefined {
+  if (!isHttpLikeUrl(url)) return undefined;
+  try {
+    const host = new URL(url).hostname;
+    if (!host) return undefined;
+    return `https://www.google.com/s2/favicons?sz=${size}&domain=${encodeURIComponent(host)}`;
   } catch {
     return undefined;
   }
