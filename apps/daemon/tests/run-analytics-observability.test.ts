@@ -169,6 +169,212 @@ describe('scanRunEventsForUsageAnalytics', () => {
     });
     expect(result.cache_hit_ratio).toBeCloseTo(2_560 / 31_711);
   });
+
+  it.each([
+    {
+      name: 'claude anthropic usage',
+      usage: {
+        input_tokens: 100,
+        output_tokens: 10,
+        cache_read_input_tokens: 20,
+        cache_creation_input_tokens: 5,
+      },
+      expected: {
+        input_tokens_provider: 100,
+        input_tokens_effective: 125,
+        output_tokens: 10,
+        total_tokens: 135,
+        cache_read_input_tokens: 20,
+        cache_creation_input_tokens: 5,
+        cache_token_source: 'anthropic',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'codex cached input usage',
+      usage: {
+        input_tokens: 200,
+        output_tokens: 11,
+        cached_input_tokens: 40,
+      },
+      expected: {
+        input_tokens_provider: 200,
+        input_tokens_effective: 200,
+        output_tokens: 11,
+        total_tokens: 211,
+        cache_read_input_tokens: 40,
+        uncached_input_tokens: 160,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'opencode normalized cache usage',
+      usage: {
+        input_tokens: 300,
+        output_tokens: 12,
+        cached_read_tokens: 60,
+        cached_write_tokens: 7,
+      },
+      expected: {
+        input_tokens_provider: 300,
+        input_tokens_effective: 300,
+        output_tokens: 12,
+        total_tokens: 312,
+        cache_read_input_tokens: 60,
+        cache_creation_input_tokens: 7,
+        uncached_input_tokens: 240,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'gemini cached usage',
+      usage: {
+        input_tokens: 400,
+        output_tokens: 13,
+        cached_read_tokens: 80,
+      },
+      expected: {
+        input_tokens_provider: 400,
+        input_tokens_effective: 400,
+        output_tokens: 13,
+        total_tokens: 413,
+        cache_read_input_tokens: 80,
+        uncached_input_tokens: 320,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'cursor cache usage',
+      usage: {
+        input_tokens: 500,
+        output_tokens: 14,
+        cached_read_tokens: 90,
+        cached_write_tokens: 8,
+      },
+      expected: {
+        input_tokens_provider: 500,
+        input_tokens_effective: 500,
+        output_tokens: 14,
+        total_tokens: 514,
+        cache_read_input_tokens: 90,
+        cache_creation_input_tokens: 8,
+        uncached_input_tokens: 410,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'acp hermes cache usage',
+      usage: {
+        input_tokens: 600,
+        output_tokens: 15,
+        cached_read_tokens: 120,
+        total_tokens: 615,
+      },
+      expected: {
+        input_tokens_provider: 600,
+        input_tokens_effective: 600,
+        output_tokens: 15,
+        total_tokens: 615,
+        cache_read_input_tokens: 120,
+        uncached_input_tokens: 480,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'amr vela usage without cache',
+      usage: {
+        input_tokens: 12,
+        output_tokens: 7,
+        total_tokens: 19,
+      },
+      expected: {
+        input_tokens_provider: 12,
+        input_tokens_effective: 12,
+        output_tokens: 7,
+        total_tokens: 19,
+        cache_token_source: 'unavailable',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'pi rpc usage with cache and provider total',
+      usage: {
+        input_tokens: 700,
+        output_tokens: 16,
+        cached_read_tokens: 140,
+        cached_write_tokens: 9,
+        total_tokens: 716,
+      },
+      expected: {
+        input_tokens_provider: 700,
+        input_tokens_effective: 700,
+        output_tokens: 16,
+        total_tokens: 716,
+        cache_read_input_tokens: 140,
+        cache_creation_input_tokens: 9,
+        uncached_input_tokens: 560,
+        cache_token_source: 'openai',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'qoder usage without cache',
+      usage: {
+        input_tokens: 800,
+        output_tokens: 17,
+      },
+      expected: {
+        input_tokens_provider: 800,
+        input_tokens_effective: 800,
+        output_tokens: 17,
+        total_tokens: 817,
+        cache_token_source: 'unavailable',
+        token_count_source: 'provider_usage',
+      },
+    },
+    {
+      name: 'copilot result usage',
+      usage: {
+        input_tokens: 900,
+        output_tokens: 18,
+      },
+      expected: {
+        input_tokens_provider: 900,
+        input_tokens_effective: 900,
+        output_tokens: 18,
+        total_tokens: 918,
+        cache_token_source: 'unavailable',
+        token_count_source: 'provider_usage',
+      },
+    },
+  ])('normalizes $name for run_finished token analytics', ({ usage, expected }) => {
+    const result = scanRunEventsForUsageAnalytics(
+      [{ event: 'agent', data: { type: 'usage', usage } }],
+      '',
+      0,
+    );
+
+    expect(result).toMatchObject(expected);
+  });
+
+  it('reports unknown token source for plain mock agents without usage events', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [{ event: 'agent', data: { type: 'text_delta', delta: 'plain output' } }],
+      '',
+      0,
+    );
+
+    expect(result).toEqual({
+      cache_token_source: 'unavailable',
+      token_count_source: 'unknown',
+      agent_reported_model: null,
+    });
+  });
 });
 
 describe('summarizeRunTimingAnalytics', () => {
