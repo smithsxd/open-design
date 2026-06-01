@@ -163,6 +163,48 @@ function Invoke-ToolsPackWinBuild([string[]]$Arguments) {
   }
 }
 
+function Test-WindowsSigningBuildFailure([string]$Stderr) {
+  if ([string]::IsNullOrWhiteSpace($Stderr)) {
+    return $false
+  }
+  return $Stderr -match "(?i)(signtool|signing|certificate|timestamp)"
+}
+
+function Disable-WindowsSigningForAutoFallback([string]$Reason) {
+  $script:windowsSigningEnabled = $false
+  $script:signingFallbackReason = $Reason
+  Remove-Item Env:\OD_WIN_SIGN_CERT_SHA1 -ErrorAction SilentlyContinue
+  Remove-Item Env:\OD_WIN_SIGNTOOL_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:\OD_WIN_SIGN_TIMESTAMP_URL -ErrorAction SilentlyContinue
+  Write-Host "Windows signing auto fallback: $Reason"
+}
+
+function Invoke-ToolsPackWinBuildWithSigningFallback(
+  [string[]]$SignedArguments,
+  [string[]]$UnsignedArguments,
+  [string]$OutputRoot,
+  [string]$JsonPath,
+  [string]$FailurePrefix
+) {
+  $buildResult = Invoke-ToolsPackWinBuild -Arguments $SignedArguments
+  if ($buildResult.exitCode -eq 0) {
+    return $buildResult
+  }
+
+  if ($script:windowsSigningEnabled -and $SignMode -eq "auto" -and (Test-WindowsSigningBuildFailure $buildResult.stderr)) {
+    Disable-WindowsSigningForAutoFallback "$FailurePrefix failed while signing; retrying unsigned because sign_mode=auto"
+    Remove-Item -LiteralPath $OutputRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $JsonPath -Force -ErrorAction SilentlyContinue
+    $retryResult = Invoke-ToolsPackWinBuild -Arguments $UnsignedArguments
+    if ($retryResult.exitCode -eq 0) {
+      return $retryResult
+    }
+    throw "$FailurePrefix unsigned fallback failed with exit code $($retryResult.exitCode)"
+  }
+
+  throw "$FailurePrefix failed with exit code $($buildResult.exitCode)"
+}
+
 function Read-GitHubOutput([string]$Path) {
   $outputs = @{}
   foreach ($line in Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue) {
@@ -682,7 +724,7 @@ try {
     Remove-Item -LiteralPath $runtimeNamespaceRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
 
-  $buildArgs = @(
+  $buildArgsUnsigned = @(
     "pnpm.cmd", "exec", "tools-pack", "win", "build",
     "--dir", $toolsPackDir,
     "--cache-dir", $cacheDir,
@@ -692,15 +734,18 @@ try {
     "--to", $Target,
     "--json"
   )
+  $buildArgs = @($buildArgsUnsigned)
   if ($script:windowsSigningEnabled) {
     $buildArgs += "--signed"
   }
 
   Measure-Step "tools-pack win build" {
-    $buildResult = Invoke-ToolsPackWinBuild -Arguments $buildArgs
-    if ($buildResult.exitCode -ne 0) {
-      throw "tools-pack win build failed with exit code $($buildResult.exitCode)"
-    }
+    $buildResult = Invoke-ToolsPackWinBuildWithSigningFallback `
+      -SignedArguments $buildArgs `
+      -UnsignedArguments $buildArgsUnsigned `
+      -OutputRoot $outputNamespaceRoot `
+      -JsonPath $buildJsonPath `
+      -FailurePrefix "tools-pack win build"
     $buildResult.stdoutLines | Set-Content -Path $buildJsonPath -Encoding utf8
   }
 
@@ -710,7 +755,7 @@ try {
     $updateFixtureVersion = Get-NextBetaFixtureVersion $ReleaseVersion
     $updateFixtureBuildJsonPath = Join-Path $platformRoot "windows-tools-pack-update-build.json"
     Remove-Item -LiteralPath $updateFixtureBuildJsonPath -Force -ErrorAction SilentlyContinue
-    $updateBuildArgs = @(
+    $updateBuildArgsUnsigned = @(
       "pnpm.cmd", "exec", "tools-pack", "win", "build",
       "--dir", $updateFixtureToolsPackDir,
       "--cache-dir", $cacheDir,
@@ -719,15 +764,18 @@ try {
       "--to", "nsis",
       "--json"
     )
+    $updateBuildArgs = @($updateBuildArgsUnsigned)
     if ($script:windowsSigningEnabled) {
       $updateBuildArgs += "--signed"
     }
 
     Measure-Step "tools-pack win build update fixture" {
-      $updateBuildResult = Invoke-ToolsPackWinBuild -Arguments $updateBuildArgs
-      if ($updateBuildResult.exitCode -ne 0) {
-        throw "tools-pack win build update fixture failed with exit code $($updateBuildResult.exitCode)"
-      }
+      $updateBuildResult = Invoke-ToolsPackWinBuildWithSigningFallback `
+        -SignedArguments $updateBuildArgs `
+        -UnsignedArguments $updateBuildArgsUnsigned `
+        -OutputRoot (Join-Path $updateFixtureToolsPackDir "out\win\namespaces\$Namespace") `
+        -JsonPath $updateFixtureBuildJsonPath `
+        -FailurePrefix "tools-pack win build update fixture"
       $updateBuildResult.stdoutLines | Set-Content -Path $updateFixtureBuildJsonPath -Encoding utf8
       $updateBuild = Get-Content -LiteralPath $updateFixtureBuildJsonPath -Raw | ConvertFrom-Json
       $localUpdateArtifactPath = [string]$updateBuild.installerPath
