@@ -17,6 +17,7 @@ import {
   writeProjectBase64File,
   writeProjectTextFile,
 } from '../providers/registry';
+import { captureHostRegionSnapshot } from '../runtime/exports';
 import { Icon } from './Icon';
 import { PreviewDrawOverlay } from './PreviewDrawOverlay';
 
@@ -799,9 +800,16 @@ export function DesignBrowserPanel({
       return;
     }
     setSavingAction('screenshot');
+    // Close the dropdown first so it cannot appear in a host compositor capture
+    // (which screenshots the on-screen window region, not the guest surface).
+    setMenuOpen(false);
     try {
-      const image = await webviewNode.capturePage();
-      const dataUrl = image.toDataURL();
+      // Let the dropdown unmount + repaint before the compositor capture.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      const dataUrl = await captureBrowserPageDataUrl();
+      if (!dataUrl) throw new Error('screenshot capture failed');
       // Put the capture on the clipboard first so it is paste-ready (e.g. into
       // the chat composer) the instant it is taken; the project file is the
       // durable artifact, the clipboard is the fast path.
@@ -826,14 +834,48 @@ export function DesignBrowserPanel({
     }
   }
 
+  // Capture the live page as a PNG data URL. Prefers the desktop compositor
+  // screenshot of the webview's on-screen region: the embedded <webview> guest
+  // WebContents' own capturePage() frequently returns an all-black frame (its
+  // GPU surface is not available to that capture path), whereas the host
+  // window's composited surface clipped to the webview rect yields the real
+  // page pixels the user sees — including authenticated content, since it is
+  // the same logged-in session. Falls back to the guest capturePage() only when
+  // no desktop host is present.
+  async function captureBrowserPageDataUrl(): Promise<string | null> {
+    const node = webviewNode;
+    if (!node) return null;
+    const rect = node.getBoundingClientRect();
+    const hostSnap = await captureHostRegionSnapshot({
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
+    if (hostSnap) return hostSnap.dataUrl;
+    try {
+      const image = await node.capturePage();
+      return image.toDataURL();
+    } catch {
+      return null;
+    }
+  }
+
   async function captureBrowserSnapshot(): Promise<{ dataUrl: string; w: number; h: number } | null> {
     if (!webviewNode || isBlank) return null;
+    const rect = webviewNode.getBoundingClientRect();
+    const hostSnap = await captureHostRegionSnapshot({
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
+    if (hostSnap) return hostSnap;
     try {
       const image = await webviewNode.capturePage();
       const dataUrl = image.toDataURL();
       const size = await imageSizeFromDataUrl(dataUrl);
       if (size) return { dataUrl, ...size };
-      const rect = webviewNode.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       return {
         dataUrl,

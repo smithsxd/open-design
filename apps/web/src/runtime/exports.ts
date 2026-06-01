@@ -17,6 +17,7 @@ import { buildReactComponentSrcdoc } from './react-component';
 import { buildZip } from './zip';
 import { randomUUID } from '../utils/uuid';
 import {
+  captureHostPage,
   isOpenDesignHostAvailable,
   printHostPdf,
 } from '@open-design/host';
@@ -391,6 +392,60 @@ export async function requestPreviewSnapshot(
 ): Promise<PreviewSnapshot | null> {
   const result = await requestPreviewSnapshotResult(iframe, timeout);
   return result.ok ? result.snapshot : null;
+}
+
+/**
+ * Capture a rectangle of the on-screen window via the desktop host's
+ * compositor (Electron `webContents.capturePage`). Unlike the in-iframe
+ * SVG-foreignObject bridge, this returns the REAL rendered pixels — fonts,
+ * external CSS, gradients, cross-origin images and embedded <webview> content
+ * all paint faithfully and the canvas is never tainted, so it cannot produce
+ * the black/blank frames the foreignObject path does. Returns null when no
+ * desktop host is present (pure web), so callers fall back to the bridge.
+ *
+ * `clipRect` is in CSS pixels relative to the viewport (e.g. an iframe's
+ * getBoundingClientRect()); capturePage expects DIP page coordinates, which
+ * match 1:1 for the top-level window (it never scrolls).
+ */
+export async function captureHostRegionSnapshot(
+  clipRect: { left: number; top: number; width: number; height: number } | null,
+): Promise<PreviewSnapshot | null> {
+  if (!isOpenDesignHostAvailable()) return null;
+  const clip = clipRect && clipRect.width >= 1 && clipRect.height >= 1
+    ? {
+        x: Math.max(0, Math.round(clipRect.left)),
+        y: Math.max(0, Math.round(clipRect.top)),
+        width: Math.max(1, Math.round(clipRect.width)),
+        height: Math.max(1, Math.round(clipRect.height)),
+      }
+    : undefined;
+  try {
+    const result = await captureHostPage(clip ? { clip } : undefined);
+    if (result.ok && result.dataUrl && result.w >= 1 && result.h >= 1) {
+      return { dataUrl: result.dataUrl, w: result.w, h: result.h };
+    }
+  } catch {
+    /* fall through to null so the caller can use the bridge */
+  }
+  return null;
+}
+
+/**
+ * Capture an iframe's on-screen region through the desktop compositor.
+ * Convenience wrapper over captureHostRegionSnapshot using the iframe's
+ * current bounding rect.
+ */
+export async function captureHostIframeSnapshot(
+  iframe: HTMLIFrameElement | null,
+): Promise<PreviewSnapshot | null> {
+  if (!iframe) return null;
+  const rect = iframe.getBoundingClientRect();
+  return captureHostRegionSnapshot({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  });
 }
 
 /** Convert a data-URL to a Blob without re-encoding through canvas. */

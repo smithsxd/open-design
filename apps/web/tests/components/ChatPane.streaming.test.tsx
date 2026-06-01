@@ -250,7 +250,11 @@ describe('ChatPane streaming state', () => {
     expect(screen.getByTestId('msg-session-mode-chip').textContent).toContain('Design Agent');
     expect(screen.getByTestId('msg-plugin-chip').textContent)
       .toContain('A Decade of Refinement Glow-Up');
-    expect(screen.getByText('template.json')).toBeTruthy();
+    // The plugin's resolved context is now collapsed into the single
+    // plugin chip — the per-category (asset/design/skill) fan-out is no
+    // longer rendered in the bubble, even though the full snapshot still
+    // rides the run for the agent.
+    expect(screen.queryByText('template.json')).toBeNull();
   });
 
   it('hides internal path ids from comment attachment chips', () => {

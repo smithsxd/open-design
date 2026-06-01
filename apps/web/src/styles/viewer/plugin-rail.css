@@ -561,54 +561,58 @@ select.plugin-inputs-form__input {
   margin-top: -1px;
 }
 .composer-shell .plugins-section__active {
-  gap: 8px;
-  padding: 9px;
+  gap: 7px;
+  padding: 7px;
   border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--border-soft));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--bg-subtle) 64%, var(--bg-panel));
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-panel) 82%, transparent);
 }
+/* Composer context bar — the applied plugin reads like a single, refined
+   file-context chip: a small type icon + the name + a hover-reveal ×. No
+   chunky icon badge, no categorized KIND prefix, no inner shadow. */
 .composer-shell .context-chip-strip {
   gap: 6px;
 }
 .composer-shell .context-chip-strip__chip {
-  min-height: 30px;
+  min-height: 24px;
   max-width: 100%;
   gap: 0;
-  padding: 0 4px 0 0;
-  background: color-mix(in srgb, var(--bg-panel) 80%, var(--c-tint));
-  border-color: color-mix(in srgb, var(--c-hue) 18%, var(--border-soft));
-  box-shadow: var(--shadow-xs);
+  padding: 0 3px 0 0;
+  background: color-mix(in srgb, var(--bg-panel) 88%, var(--c-tint));
+  border-color: color-mix(in srgb, var(--c-hue) 16%, var(--border-soft));
 }
 .composer-shell .context-chip-strip__body {
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  padding: 4px 7px 4px 8px;
+  padding: 2px 6px 2px 8px;
 }
+/* Drop the badge box — let a small, hue-tinted type icon lead, exactly
+   like a file context chip. */
 .composer-shell .context-chip-strip__icon {
-  min-width: 24px;
-  height: 18px;
-  padding: 0 5px;
-  justify-content: center;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--c-hue) 10%, var(--bg-panel));
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  color: color-mix(in srgb, var(--c-hue) 80%, var(--text));
 }
 .composer-shell .context-chip-strip__icon::before {
-  width: 4px;
-  height: 4px;
-  margin-right: 4px;
+  display: none; /* the type icon already leads — no redundant dot */
 }
+/* A single applied plugin is a context, not a category — hide the
+   PLUGIN/DESIGN/ASSET prefix so the chip mirrors a plain file chip. */
 .composer-shell .context-chip-strip__kind {
-  font-size: 9px;
-  letter-spacing: 0.06em;
+  display: none;
 }
 .composer-shell .context-chip-strip__label {
-  max-width: 142px;
+  max-width: 168px;
+  font-size: 11.5px;
+  font-weight: 550;
 }
 .composer-shell .context-chip-strip__remove {
-  width: 20px;
-  height: 20px;
-  opacity: 0.72;
+  width: 18px;
+  height: 18px;
 }
 .composer-shell .plugin-inputs-form {
   display: grid;

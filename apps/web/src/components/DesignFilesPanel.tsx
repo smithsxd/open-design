@@ -252,6 +252,11 @@ export function DesignFilesPanel({
     Set<ModifiedSection>
   >(new Set());
   const [renaming, setRenaming] = useState<{ name: string; draft: string; saving: boolean } | null>(null);
+  // In-app dialogs for folder name input and move-to-folder. These replace
+  // window.prompt(), which throws ("prompt() is not supported.") in the
+  // Electron desktop host and silently aborted folder creation / moves there.
+  const [folderDialogDefault, setFolderDialogDefault] = useState<string | null>(null);
+  const [moveDialogNames, setMoveDialogNames] = useState<string[] | null>(null);
   const [dayBoundary, setDayBoundary] = useState(() => Date.now());
   const [kindFilter, setKindFilter] = useState<Set<ProjectFileKind>>(() => {
     const { kindFilter: kf } = savedViewState.current;
@@ -711,11 +716,15 @@ export function DesignFilesPanel({
     }
   }
 
-  async function handleCreateFolder() {
+  function handleCreateFolder() {
     if (!onCreateFolder) return;
     const suggestedPath = nextAvailableFolderPath(currentDir, folderPathSet, files);
-    const rawName = window.prompt('New folder name', basenameForProjectPath(suggestedPath));
-    if (rawName === null) return;
+    setFolderDialogDefault(basenameForProjectPath(suggestedPath));
+  }
+
+  async function commitCreateFolder(rawName: string) {
+    setFolderDialogDefault(null);
+    if (!onCreateFolder) return;
     const cleanName = rawName.trim().replace(/^\/+|\/+$/g, '');
     if (!cleanName) return;
     const targetPath =
@@ -771,13 +780,14 @@ export function DesignFilesPanel({
 
   function startMove(name: string) {
     setMenuPos(null);
-    const foldersText = folderPaths.length > 0 ? `\n\nFolders:\n${folderPaths.join('\n')}` : '';
-    const rawTarget = window.prompt(
-      `Move to folder path. Leave blank for project root.${foldersText}`,
-      currentDir,
-    );
-    if (rawTarget === null) return;
-    void moveFilesToFolder([name], rawTarget.trim().replace(/^\/+|\/+$/g, ''));
+    setMoveDialogNames([name]);
+  }
+
+  function commitMove(targetPath: string) {
+    const names = moveDialogNames;
+    setMoveDialogNames(null);
+    if (!names || names.length === 0) return;
+    void moveFilesToFolder(names, targetPath.trim().replace(/^\/+|\/+$/g, ''));
   }
 
   async function handleBatchDelete() {
@@ -1808,7 +1818,7 @@ export function DesignFilesPanel({
               startMove(menuPos.name);
             }}
           >
-            Move to folder...
+            {t('designFiles.moveTitle')}
           </button>
           <a
             href={projectFileUrl(projectId, menuPos.name)}
@@ -1841,6 +1851,181 @@ export function DesignFilesPanel({
           </button>
         </div>
       ) : null}
+      {folderDialogDefault !== null ? (
+        <FolderNameDialog
+          t={t}
+          defaultName={folderDialogDefault}
+          onCancel={() => setFolderDialogDefault(null)}
+          onSubmit={(name) => void commitCreateFolder(name)}
+        />
+      ) : null}
+      {moveDialogNames !== null ? (
+        <MoveToFolderDialog
+          t={t}
+          currentDir={currentDir}
+          folderPaths={folderPaths}
+          onCancel={() => setMoveDialogNames(null)}
+          onSubmit={commitMove}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Sentinel <option> value that switches the move picker into "type a new
+// folder path" mode. Colons can never appear in a real project folder path
+// (the daemon's sanitizeName rewrites ':' to '_'), so this can't collide with
+// an actual folder.
+const MOVE_NEW_FOLDER = '::new-folder::';
+
+/**
+ * In-app replacement for `window.prompt('New folder name')`. The native prompt
+ * throws in the Electron desktop host, so folder creation died there with an
+ * uncaught "prompt() is not supported." error; this dialog works in both web
+ * and desktop. Enter commits, Escape / backdrop click cancels.
+ */
+function FolderNameDialog({
+  t,
+  defaultName,
+  onCancel,
+  onSubmit,
+}: {
+  t: TranslateFn;
+  defaultName: string;
+  onCancel: () => void;
+  onSubmit: (name: string) => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
+  function commit() {
+    if (!name.trim()) return;
+    onSubmit(name.trim());
+  }
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{t('designFiles.newFolderTitle')}</h2>
+        <label>
+          {t('designFiles.newFolderLabel')}
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onCancel();
+              }
+            }}
+          />
+        </label>
+        <div className="row">
+          <button type="button" onClick={onCancel}>
+            {t('common.cancel')}
+          </button>
+          <button type="button" className="primary" onClick={commit} disabled={!name.trim()}>
+            {t('common.create')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * In-app replacement for the `window.prompt('Move to folder path')` flow. Lists
+ * existing folders plus the project root, and offers a "New folder…" option
+ * that reveals a path input. Submitting an empty target moves the file(s) to
+ * the project root. Works in both web and the Electron desktop host.
+ */
+function MoveToFolderDialog({
+  t,
+  currentDir,
+  folderPaths,
+  onCancel,
+  onSubmit,
+}: {
+  t: TranslateFn;
+  currentDir: string;
+  folderPaths: string[];
+  onCancel: () => void;
+  onSubmit: (targetPath: string) => void;
+}) {
+  const sortedFolders = useMemo(
+    () => [...folderPaths].sort((a, b) => a.localeCompare(b)),
+    [folderPaths],
+  );
+  const [selection, setSelection] = useState<string>(() =>
+    currentDir && folderPaths.includes(currentDir) ? currentDir : '',
+  );
+  const [newFolder, setNewFolder] = useState('');
+  const isNew = selection === MOVE_NEW_FOLDER;
+  function commit() {
+    if (isNew) {
+      const trimmed = newFolder.trim().replace(/^\/+|\/+$/g, '');
+      if (!trimmed) return;
+      onSubmit(trimmed);
+      return;
+    }
+    onSubmit(selection);
+  }
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{t('designFiles.moveTitle')}</h2>
+        <label>
+          {t('designFiles.moveLabel')}
+          <select value={selection} onChange={(e) => setSelection(e.target.value)}>
+            <option value="">{t('designFiles.moveRoot')}</option>
+            {sortedFolders.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+            <option value={MOVE_NEW_FOLDER}>{t('designFiles.moveNewFolder')}</option>
+          </select>
+        </label>
+        {isNew ? (
+          <label>
+            {t('designFiles.newFolderLabel')}
+            <input
+              type="text"
+              value={newFolder}
+              autoFocus
+              onChange={(e) => setNewFolder(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commit();
+                }
+              }}
+            />
+          </label>
+        ) : null}
+        <div className="row">
+          <button type="button" onClick={onCancel}>
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={commit}
+            disabled={isNew && !newFolder.trim()}
+          >
+            {t('designFiles.move')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

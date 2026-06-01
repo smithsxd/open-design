@@ -37,6 +37,32 @@ describe('buildSrcdoc', () => {
     expect(srcdoc).toContain('foreignObject');
   });
 
+  it('paints an opaque background before drawing so empty rasters never flatten to black', () => {
+    const srcdoc = buildSrcdoc('<main style="color:red">Hero</main>');
+
+    // A fresh 2D canvas is transparent black; without an opaque base, a
+    // foreignObject that paints nothing flattens to a solid BLACK PNG in
+    // clipboards/viewers (the reported bug). The bridge must fill first.
+    expect(srcdoc).toContain('function snapshotBackgroundColor()');
+    expect(srcdoc).toContain('ctx.fillStyle = bgColor;');
+    expect(srcdoc).toContain('ctx.fillRect(0, 0, w, h);');
+    // The fill happens before the rasterized image is drawn over it.
+    const fillIdx = srcdoc.indexOf('ctx.fillRect(0, 0, w, h);');
+    const drawIdx = srcdoc.indexOf('ctx.drawImage(img, 0, 0, w, h);');
+    expect(fillIdx).toBeGreaterThan(-1);
+    expect(drawIdx).toBeGreaterThan(fillIdx);
+  });
+
+  it('reports an empty-render error instead of shipping a blank capture', () => {
+    const srcdoc = buildSrcdoc('<main style="color:red">Hero</main>');
+
+    // When the foreignObject paints nothing the canvas is uniform; the bridge
+    // must surface that as an honest failure so the host can fall back / show
+    // an error rather than copy a (now white-filled but still empty) frame.
+    expect(srcdoc).toContain('function canvasLooksBlank(');
+    expect(srcdoc).toContain("error: 'empty-render'");
+  });
+
   it('renders snapshot SVGs through data URLs so canvas export stays origin-clean', () => {
     const srcdoc = buildSrcdoc('<main style="color:red">Hero</main>');
 

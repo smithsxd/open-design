@@ -13,7 +13,7 @@ import {
   type DesktopExportPdfResult,
   type DesktopUpdateStatusSnapshot,
 } from "@open-design/sidecar-proto";
-import type { OpenDesignHostActionResult, OpenDesignHostUpdaterActionOptions } from "@open-design/host";
+import type { OpenDesignHostActionResult, OpenDesignHostCaptureResult, OpenDesignHostUpdaterActionOptions } from "@open-design/host";
 
 import { createElectronPdfTarget, exportPdfFromHtml, savePrintReadyDocumentAsPdf } from "./pdf-export.js";
 import type { PrintReadyPdfOptions } from "./pdf-export.js";
@@ -1004,6 +1004,36 @@ function parsePrintReadyPdfOptions(value: unknown): PrintReadyPdfOptions {
   return deck === true ? { deck: true } : {};
 }
 
+// Parses the optional renderer-supplied capture clip into an Electron
+// Rectangle. Returns undefined (capture the full page) when the payload is
+// missing, not an object, or carries an invalid clip; valid clips are
+// rounded and clamped so x/y stay >= 0 and width/height stay >= 1.
+function parseCaptureClip(value: unknown): Electron.Rectangle | undefined {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const clip = (value as { clip?: unknown }).clip;
+  if (clip == null || typeof clip !== "object" || Array.isArray(clip)) return undefined;
+  const { x, y, width, height } = clip as {
+    x?: unknown;
+    y?: unknown;
+    width?: unknown;
+    height?: unknown;
+  };
+  if (
+    typeof x !== "number" || !Number.isFinite(x) ||
+    typeof y !== "number" || !Number.isFinite(y) ||
+    typeof width !== "number" || !Number.isFinite(width) ||
+    typeof height !== "number" || !Number.isFinite(height)
+  ) {
+    return undefined;
+  }
+  return {
+    x: Math.max(0, Math.round(x)),
+    y: Math.max(0, Math.round(y)),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
 function unavailableUpdaterStatus(): DesktopUpdateStatusSnapshot {
   return {
     arch: process.arch,
@@ -1398,6 +1428,23 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
     );
     if (!result.ok) {
       throw new Error(result.error ?? 'PDF export failed');
+    }
+  });
+
+  ipcMain.removeHandler('od:capture-page');
+  ipcMain.handle('od:capture-page', async (event, rawOptions: unknown): Promise<OpenDesignHostCaptureResult> => {
+    if (event.sender !== window.webContents) {
+      return { ok: false, reason: 'capture sender not allowed' };
+    }
+    try {
+      const clip = parseCaptureClip(rawOptions);
+      const image = clip
+        ? await window.webContents.capturePage(clip)
+        : await window.webContents.capturePage();
+      const size = image.getSize();
+      return { ok: true, dataUrl: image.toDataURL(), w: size.width, h: size.height };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
     }
   });
 

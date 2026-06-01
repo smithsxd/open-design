@@ -1,5 +1,5 @@
 export const OPEN_DESIGN_HOST_GLOBAL = "__od__";
-export const OPEN_DESIGN_HOST_VERSION = 1;
+export const OPEN_DESIGN_HOST_VERSION = 2;
 
 export const OPEN_DESIGN_HOST_CLIENT_TYPES = Object.freeze({
   DESKTOP: "desktop",
@@ -66,6 +66,11 @@ export type OpenDesignHostProjectReplaceWorkingDirResult =
 export type OpenDesignHostPdfPrintOptions = {
   deck?: boolean;
 };
+
+export type OpenDesignHostCaptureClip = { x: number; y: number; width: number; height: number };
+export type OpenDesignHostCaptureOptions = { clip?: OpenDesignHostCaptureClip };
+export type OpenDesignHostCaptureSuccess = { dataUrl: string; h: number; ok: true; w: number };
+export type OpenDesignHostCaptureResult = OpenDesignHostCaptureSuccess | OpenDesignHostFailure;
 
 export type OpenDesignHostBrowserClearDataOptions = {
   cookies?: boolean;
@@ -211,6 +216,9 @@ export type OpenDesignHostBridge = {
   browser: {
     clearData(options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult>;
   };
+  capture: {
+    page(options?: OpenDesignHostCaptureOptions): Promise<OpenDesignHostCaptureResult>;
+  };
   client: OpenDesignHostClient;
   pdf: {
     print(html: string, nonce?: string, options?: OpenDesignHostPdfPrintOptions): Promise<OpenDesignHostActionResult>;
@@ -270,6 +278,9 @@ export function isOpenDesignHostBridge(value: unknown): value is OpenDesignHostB
 
   const browser = value.browser;
   if (!isRecord(browser) || !hasFunction(browser, "clearData")) return false;
+
+  const capture = value.capture;
+  if (!isRecord(capture) || !hasFunction(capture, "page")) return false;
 
   const project = value.project;
   if (
@@ -424,6 +435,19 @@ export async function clearHostBrowserData(
   if (host == null) return unavailable("Open Design host is not available");
   try {
     return await host.browser.clearData(options);
+  } catch (error) {
+    return unavailable(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function captureHostPage(
+  options?: OpenDesignHostCaptureOptions,
+  scope: OpenDesignHostGlobalScope = globalThis,
+): Promise<OpenDesignHostCaptureResult> {
+  const host = getOpenDesignHost(scope);
+  if (host == null) return unavailable("Open Design host is not available");
+  try {
+    return await host.capture.page(options);
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : String(error));
   }

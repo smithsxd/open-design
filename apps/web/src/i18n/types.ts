@@ -1800,6 +1800,9 @@ export interface Dict {
   'chat.comments.targetPage': string;
   'chat.comments.targetArea': string;
   'chat.annotationNotePlaceholder': string;
+  'chat.annotationAttachImage': string;
+  'chat.annotationAttachedImages': string;
+  'chat.annotationAttachedRemove': string;
   'chat.annotationAddToInput': string;
   'chat.annotationAddingToInput': string;
   'chat.annotationQueue': string;
@@ -2057,6 +2060,13 @@ export interface Dict {
   'designFiles.kindBinary': string;
   'designFiles.kindFolder': string;
   'designFiles.folderCount': string;
+  'designFiles.newFolderTitle': string;
+  'designFiles.newFolderLabel': string;
+  'designFiles.moveTitle': string;
+  'designFiles.moveLabel': string;
+  'designFiles.moveRoot': string;
+  'designFiles.moveNewFolder': string;
+  'designFiles.move': string;
   'designFiles.colName': string;
   'designFiles.colKind': string;
   'designFiles.colModified': string;

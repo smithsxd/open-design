@@ -163,6 +163,13 @@ export interface ChatComposerHandle {
     text: string;
     attachments?: ChatAttachment[];
     commentAttachments?: ChatCommentAttachment[];
+    /**
+     * The queued turn's meta. When present, restoreDraft rebuilds the staged
+     * plugin / connector / skill / MCP context (and re-shows their chips) so
+     * editing a queued item keeps its bindings instead of silently dropping
+     * them.
+     */
+    meta?: ChatSendMeta;
   }) => void;
   focus: () => void;
 }
@@ -622,13 +629,39 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           editorRef.current?.focus();
           seededRef.current = true;
         },
-        restoreDraft: ({ text, attachments = [], commentAttachments = [] }) => {
+        restoreDraft: ({ text, attachments = [], commentAttachments = [], meta }) => {
           setDraft(text);
           setStaged(attachments);
           setStagedVisualComments(commentAttachments);
-          setStagedSkills([]);
-          setStagedMcpServers([]);
-          setStagedConnectors([]);
+          // Rebuild staged context from the queued turn's meta so the
+          // plugin / connector / skill / MCP bindings (and their chips) come
+          // back for editing instead of being dropped. Ids resolve against the
+          // currently-loaded lists; ids that no longer resolve (uninstalled
+          // since queueing) are skipped rather than crashing. The applied
+          // plugin is restored from its full snapshot, so it needs no lookup.
+          const ctx = meta?.context;
+          setStagedSkills(
+            ctx?.skillIds
+              ? ctx.skillIds
+                  .map((id) => skills.find((s) => s.id === id))
+                  .filter((s): s is SkillSummary => Boolean(s))
+              : [],
+          );
+          setStagedMcpServers(
+            ctx?.mcpServerIds
+              ? ctx.mcpServerIds
+                  .map((id) => mcpServers.find((s) => s.id === id))
+                  .filter((s): s is McpServerConfig => Boolean(s))
+              : [],
+          );
+          setStagedConnectors(
+            ctx?.connectorIds
+              ? ctx.connectorIds
+                  .map((id) => connectors.find((c) => c.id === id))
+                  .filter((c): c is ConnectorDetail => Boolean(c))
+              : [],
+          );
+          setActiveAppliedPlugin(meta?.appliedPluginSnapshot ?? null);
           setUploadError(null);
           setMention(null);
           setSlash(null);
@@ -640,7 +673,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           editorRef.current?.focus();
         },
       }),
-      []
+      [connectors, mcpServers, skills]
     );
 
     function reset() {
@@ -849,17 +882,24 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           let visualAttachmentInput: Parameters<typeof buildVisualAnnotationAttachment>[0] | null = null;
           let visualAttachment: ChatCommentAttachment | null = null;
           try {
-            if (detail.file) {
+            // Upload the annotation screenshot together with any images the
+            // user attached in the markup composer. The screenshot (when
+            // present) is first so it keeps backing the structured visual
+            // comment; the rest ride along as ordinary chat attachments.
+            const annotationFiles = [detail.file, ...(detail.extraFiles ?? [])].filter(
+              (f): f is File => Boolean(f),
+            );
+            if (annotationFiles.length > 0) {
               const id = await ensureProject();
               if (!id) {
                 ack({ ok: false, message: t('chat.annotationProjectCreateFailed') });
                 return;
               }
               setUploading(true);
-              const result = await uploadProjectFiles(id, [detail.file]);
+              const result = await uploadProjectFiles(id, annotationFiles);
               if (result.uploaded.length > 0) {
                 uploaded = result.uploaded;
-                const screenshot = uploaded[0];
+                const screenshot = detail.file ? uploaded[0] : null;
                 if (screenshot && detail.markKind && detail.bounds) {
                   visualAttachmentInput = {
                     order: 1,

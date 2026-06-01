@@ -26,7 +26,6 @@ import {
   type ChatComposerHandle,
   type ChatSendMeta,
 } from './ChatComposer';
-import { ContextChipStrip } from './ContextChipStrip';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { Icon } from './Icon';
 import { repoConnectCopy } from './design-system-github-evidence';
@@ -558,6 +557,7 @@ export function ChatPane({
       text: item.prompt,
       attachments: item.attachments ?? [],
       commentAttachments: item.commentAttachments ?? [],
+      meta: item.meta,
     });
   };
 
@@ -1464,7 +1464,10 @@ function QueuedSendStrip({
           }`}
           key={item.id}
         >
-          <span className="chat-queued-send-title">{summarizeQueuedPrompt(item, t)}</span>
+          <div className="chat-queued-send-main">
+            <span className="chat-queued-send-title">{summarizeQueuedPrompt(item, t)}</span>
+            <QueuedSendMetaChips item={item} />
+          </div>
           <div className="chat-queued-send-actions">
             {onEdit ? (
               <button
@@ -1516,13 +1519,40 @@ const QUEUED_SEND_VISIBLE_LIMIT = 4;
 
 function summarizeQueuedPrompt(item: QueuedSendItem, t: TranslateFn): string {
   const normalized = item.prompt.replace(/\s+/g, ' ').trim();
-  const parts = [normalized || t('chat.queuedFollowUpFallback')];
-  const attachmentCount = item.attachments?.length ?? 0;
-  const commentCount = item.commentAttachments?.length ?? 0;
-  if (attachmentCount > 0) parts.push(`${attachmentCount} file${attachmentCount === 1 ? '' : 's'}`);
-  if (commentCount > 0) parts.push(`${commentCount} mark${commentCount === 1 ? '' : 's'}`);
-  const text = parts.join(' · ');
+  const text = normalized || t('chat.queuedFollowUpFallback');
   return text.length > 58 ? `${text.slice(0, 57)}...` : text;
+}
+
+// Surfaces what a queued turn carries — attachments, visual marks, and the
+// staged plugin / skill / MCP / connector context from its meta — as compact
+// chips so the user can see (and trust) what will be sent without expanding it.
+// Counts use the same plain-English style as the rest of this strip.
+function QueuedSendMetaChips({ item }: { item: QueuedSendItem }) {
+  const ctx = item.meta?.context;
+  const files = item.attachments?.length ?? 0;
+  const marks = item.commentAttachments?.length ?? 0;
+  const plugins = item.meta?.appliedPluginSnapshot ? 1 : ctx?.pluginIds?.length ?? 0;
+  const skills = ctx?.skillIds?.length ?? 0;
+  const mcp = ctx?.mcpServerIds?.length ?? 0;
+  const connectors = ctx?.connectorIds?.length ?? 0;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const chips: Array<{ key: string; label: string }> = [];
+  if (files > 0) chips.push({ key: 'files', label: plural(files, 'file') });
+  if (marks > 0) chips.push({ key: 'marks', label: plural(marks, 'mark') });
+  if (plugins > 0) chips.push({ key: 'plugins', label: plural(plugins, 'plugin') });
+  if (skills > 0) chips.push({ key: 'skills', label: plural(skills, 'skill') });
+  if (mcp > 0) chips.push({ key: 'mcp', label: `${mcp} MCP` });
+  if (connectors > 0) chips.push({ key: 'connectors', label: plural(connectors, 'connector') });
+  if (chips.length === 0) return null;
+  return (
+    <div className="chat-queued-send-chips">
+      {chips.map((chip) => (
+        <span key={chip.key} className="chat-queued-send-chip">
+          {chip.label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function CommentsPanel({
@@ -1935,9 +1965,9 @@ function ActivePluginChip({
   const title = snapshot.pluginTitle ?? snapshot.pluginId;
   const version = snapshot.pluginVersion;
   const taskKind = snapshot.taskKind;
-  const contextItems = (snapshot.resolvedContext?.items ?? []).filter(
-    (item) => !(item.kind === 'plugin' && item.id === snapshot.pluginId),
-  );
+  // One clean chip per message — the plugin's full resolved context still
+  // rides the run via the persisted snapshot; we no longer fan it out into
+  // per-category (design-system / asset / skill) chips here.
   return (
     <div className="msg-plugin-context" data-testid="msg-plugin-context">
       <div className="msg-plugin-chip" data-testid="msg-plugin-chip">
@@ -1951,9 +1981,6 @@ function ActivePluginChip({
           <span className="msg-plugin-chip__task">{taskKind}</span>
         ) : null}
       </div>
-      {contextItems.length > 0 ? (
-        <ContextChipStrip items={contextItems} />
-      ) : null}
     </div>
   );
 }

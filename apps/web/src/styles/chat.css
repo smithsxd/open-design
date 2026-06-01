@@ -628,7 +628,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 1.48em;
+  /* Dify recipe: fixed-px box + vertical-align:middle, NOT an em-relative
+     height with a magic baseline nudge. A 19px box centers cleanly in the
+     editor's 21.6px line (13.5px × 1.6) and stays put under zoom / font
+     scaling because none of these metrics are derived from the pill's own
+     reduced font-size. */
+  height: 19px;
   max-width: min(240px, 25vw);
   margin: 0 0.5px;
   padding: 0 7px 0 6px;
@@ -637,13 +642,15 @@
   background: var(--m-tint);
   color: color-mix(in srgb, var(--m-hue) 72%, var(--text));
   font: inherit;
-  font-size: 0.94em;
+  font-size: 12.5px;
   font-weight: 500;
-  line-height: 1.12;
+  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: -0.18em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.5px; /* residual descender bias so the box optically centers on text */
   cursor: default;
   /* user-select:none keeps the node atomic — the caret lands beside it,
      never inside the "@token" glyphs. */
@@ -659,8 +666,8 @@
 .composer-inline-mention::before {
   content: '';
   flex: 0 0 auto;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--m-hue);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-hue) 18%, transparent);
@@ -1046,14 +1053,42 @@
   background: var(--bg-subtle);
 }
 
-.chat-queued-send-title {
+.chat-queued-send-main {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-queued-send-title {
+  min-width: 0;
   overflow: hidden;
   color: var(--text);
   font-size: 12.5px;
   line-height: 1.35;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-queued-send-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-queued-send-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
   white-space: nowrap;
 }
 

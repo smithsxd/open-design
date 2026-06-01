@@ -70,6 +70,7 @@ import {
   copyImageDataUrlToClipboard,
   exportReactComponentAsHtml,
   exportReactComponentAsZip,
+  captureHostIframeSnapshot,
   imageDataUrlToBlob,
   openSandboxedPreviewInNewTab,
   prepareImageExportTarget,
@@ -6330,6 +6331,15 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     setShareMenuOpen((v) => !v);
   };
   const captureExportImageSnapshot = useCallback(async () => {
+    // Prefer the desktop compositor screenshot of the visible preview region:
+    // it returns the real rendered pixels (fonts, external CSS, gradients,
+    // images) and is never tainted, so it cannot produce the black/blank frames
+    // the in-iframe SVG-foreignObject bridge does. Works for both srcDoc and
+    // URL-load previews. Falls through to the bridge on pure web (no host).
+    const visibleIframe = iframeRef.current ?? srcDocPreviewIframeRef.current;
+    const hostSnapshot = await captureHostIframeSnapshot(visibleIframe);
+    if (hostSnapshot) return hostSnapshot;
+
     if (!useUrlLoadPreview) {
       const activeIframe = srcDocPreviewIframeRef.current ?? iframeRef.current;
       if (!activeIframe) return null;

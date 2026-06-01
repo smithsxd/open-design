@@ -66,10 +66,14 @@ describe("open-design host contract", () => {
 
   it("rejects legacy or incomplete bridge shapes", () => {
     expect(isOpenDesignHostBridge({ version: OPEN_DESIGN_HOST_VERSION })).toBe(false);
-    expect(isOpenDesignHostBridge({ ...createMockOpenDesignHost(), version: 2 })).toBe(false);
+    expect(isOpenDesignHostBridge({ ...createMockOpenDesignHost(), version: 1 })).toBe(false);
     expect(isOpenDesignHostBridge({
       ...createMockOpenDesignHost(),
       browser: {},
+    })).toBe(false);
+    expect(isOpenDesignHostBridge({
+      ...createMockOpenDesignHost(),
+      capture: {},
     })).toBe(false);
     expect(isOpenDesignHostBridge({
       ...createMockOpenDesignHost(),
