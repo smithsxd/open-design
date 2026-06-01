@@ -122,10 +122,10 @@ Open Design 是这样一种产物：Anthropic 随 Claude Design 推出的 **Agen
 
 | 平台 | 状态 | 安装方式 |
 |---|---|---|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ **原生** | 插件市场 · `claude plugin install open-design` |
-| [Cursor](https://www.cursor.com/cli) | ✅ 支持 | 从 `PATH` 自动发现 · Cursor 深层链接（**设置 → MCP 服务器**） |
-| [VS Code + GitHub Copilot](https://github.com/features/copilot) | ✅ 支持 | 从 `PATH` 自动发现 |
-| [GitHub Copilot CLI](https://github.com/features/copilot/cli) | ✅ 支持 | `od plugin install copilot` |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ **原生** | `curl -fsSL https://open-design.ai/install.sh \| sh -s claude` |
+| [Cursor](https://www.cursor.com/cli) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s cursor` |
+| [VS Code + GitHub Copilot](https://github.com/features/copilot) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s copilot` |
+| [GitHub Copilot CLI](https://github.com/features/copilot/cli) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s copilot` |
 | [Codex CLI](https://github.com/openai/codex) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s codex` |
 | [OpenCode](https://opencode.ai/) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s opencode` |
 | [OpenClaw](https://github.com/openclaw/openclaw) | ✅ 支持 | `curl -fsSL https://open-design.ai/install.sh \| sh -s openclaw` |
