@@ -601,8 +601,8 @@ importers:
         version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(jsdom@29.1.1)(vite@7.3.3(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.22.3)(yaml@2.9.0))
     optionalDependencies:
       '@powerformer/vela-cli':
-        specifier: 0.0.8
-        version: 0.0.8
+        specifier: 0.0.9
+        version: 0.0.9
 
   tools/serve:
     dependencies:
@@ -1642,33 +1642,33 @@ packages:
   '@posthog/types@1.374.2':
     resolution: {integrity: sha512-ZghQSFMi+HFJNPvPjBoyY/jWQ+q6mSQVtWQxOHMSbBidUZjsyYbxYxBFbHy2qWLNe4mEpX+Wqir2Q4I/4AVvJQ==}
 
-  '@powerformer/vela-cli-darwin-arm64@0.0.8':
-    resolution: {integrity: sha512-w9r+1IubeCkChCCIXxdz/Wlnq5qTNQ4fklXlMiict5AAH+3OzEjRKD8Ka8snky/XkwECg/tM0WkO4M0tMClUCA==}
+  '@powerformer/vela-cli-darwin-arm64@0.0.9':
+    resolution: {integrity: sha512-lEAd1PboxIxoKVVONjmiTGECCzhUUGh67cgaf5oGc+/1QG38ooVZ2IGmUSJIcKvZglH//Zmd4kItKvWoy39oDA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@powerformer/vela-cli-darwin-x64@0.0.8':
-    resolution: {integrity: sha512-NYsrCqIAvUH0Ms7Yc8J/WH2FUqsOu3Eg0g7g4Q1aGgO62iSidAuDblUGPx9x+OSoktvX8Z7cZsAJ387OKrWqtg==}
+  '@powerformer/vela-cli-darwin-x64@0.0.9':
+    resolution: {integrity: sha512-4WNi3BqXy0lcyyJUjDuBoWNYtUYh/berA972dJL0yCv7B5mQke52Q87dvFL0Dgq3bou4t73Fw+KsE1N9EXKjpA==}
     cpu: [x64]
     os: [darwin]
 
-  '@powerformer/vela-cli-linux-arm64@0.0.8':
-    resolution: {integrity: sha512-XeiDvJJOoQJPXLVos9gwwvTPV9Yq79PQ6gvXNqQpIUZSOFzdZMIldLo/1D2cS55fx41O0dyEZVITN2NwfsjP9A==}
+  '@powerformer/vela-cli-linux-arm64@0.0.9':
+    resolution: {integrity: sha512-0r8QhAqjywo9MOXoa2ciLc+MfrqanaIexSz+e2snUncLJ+59jgEz/R2oUnaxV/Y7E1piMj2GfUx4bZ/EqkT/4w==}
     cpu: [arm64]
     os: [linux]
 
-  '@powerformer/vela-cli-linux-x64@0.0.8':
-    resolution: {integrity: sha512-mPwjJSEMup0VWp+VNzVo4xKYn2ueUaGogujshLPyuZ08kkeZKCMuGg9PBp2XKz8VQvWDYnQE3TFoY5mW1/Sc+Q==}
+  '@powerformer/vela-cli-linux-x64@0.0.9':
+    resolution: {integrity: sha512-Kur6W+SxtAL09WZhW4Z+EtYHgjOy9RK0ZEDZMsnHwbMhBAgCzNYkIKfa6oFLIuE1wnF5q3Kwi3td4aDHie9zPg==}
     cpu: [x64]
     os: [linux]
 
-  '@powerformer/vela-cli-win32-x64@0.0.8':
-    resolution: {integrity: sha512-x91rBmOjoFaca/cOnpMzU3NpS72poxdMWBUj9vJkci5jat/D+o6SEutuVldqxBMjMHCUtxTQDP/GT21o0SiiBw==}
+  '@powerformer/vela-cli-win32-x64@0.0.9':
+    resolution: {integrity: sha512-Vf4+N1KUnOIiN1gkdfWysF7l6PFmhW5DcUoSXKRxH1rwlu/2inqcEo6qCkxZCLuP5N+MtJeeVbCewaoqdbDf9w==}
     cpu: [x64]
     os: [win32]
 
-  '@powerformer/vela-cli@0.0.8':
-    resolution: {integrity: sha512-XtG+0MmAM99R1hZg8EpPv2Pkbgl0QWXuuKaA1wrSgY+P8DXe6ivjc5u1Gy7RDtIp4gKpEpLbv5lrIKxPuciwvw==}
+  '@powerformer/vela-cli@0.0.9':
+    resolution: {integrity: sha512-QTDxfs3wBAATlSvdDcFglj7pHHWGFoWvj+aPvgKU1iRgSO+/L2WYceus7joO8lzRCJTmdhGIY2cT/3FaX2k/rA==}
     hasBin: true
 
   '@rollup/pluginutils@5.3.0':
@@ -6063,28 +6063,28 @@ snapshots:
 
   '@posthog/types@1.374.2': {}
 
-  '@powerformer/vela-cli-darwin-arm64@0.0.8':
+  '@powerformer/vela-cli-darwin-arm64@0.0.9':
     optional: true
 
-  '@powerformer/vela-cli-darwin-x64@0.0.8':
+  '@powerformer/vela-cli-darwin-x64@0.0.9':
     optional: true
 
-  '@powerformer/vela-cli-linux-arm64@0.0.8':
+  '@powerformer/vela-cli-linux-arm64@0.0.9':
     optional: true
 
-  '@powerformer/vela-cli-linux-x64@0.0.8':
+  '@powerformer/vela-cli-linux-x64@0.0.9':
     optional: true
 
-  '@powerformer/vela-cli-win32-x64@0.0.8':
+  '@powerformer/vela-cli-win32-x64@0.0.9':
     optional: true
 
-  '@powerformer/vela-cli@0.0.8':
+  '@powerformer/vela-cli@0.0.9':
     optionalDependencies:
-      '@powerformer/vela-cli-darwin-arm64': 0.0.8
-      '@powerformer/vela-cli-darwin-x64': 0.0.8
-      '@powerformer/vela-cli-linux-arm64': 0.0.8
-      '@powerformer/vela-cli-linux-x64': 0.0.8
-      '@powerformer/vela-cli-win32-x64': 0.0.8
+      '@powerformer/vela-cli-darwin-arm64': 0.0.9
+      '@powerformer/vela-cli-darwin-x64': 0.0.9
+      '@powerformer/vela-cli-linux-arm64': 0.0.9
+      '@powerformer/vela-cli-linux-x64': 0.0.9
+      '@powerformer/vela-cli-win32-x64': 0.0.9
     optional: true
 
   '@rollup/pluginutils@5.3.0(rollup@4.60.2)':
