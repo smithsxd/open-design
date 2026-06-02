@@ -45,14 +45,15 @@ If `gh repo view "$TARGET_FORK"` fails, ask the user (one `AskUserQuestion`) whe
 
 ## Step 2 — Pick contribution type
 
-Single `AskUserQuestion` (header: "Contribution", multiSelect: false), four options. Translate option labels/descriptions into the user's chat language; the branch routing is unchanged.
+Single `AskUserQuestion` (header: "Contribution", multiSelect: false), five options. Translate option labels/descriptions into the user's chat language; the branch routing is unchanged.
 
-1. **🎨 Ship something I made with OD** — _a Skill, Design System, HyperFrame, or template I want to contribute upstream_ → branch `3a`
-2. **🌍 Translate OD docs** — _README / QUICKSTART / CONTRIBUTING into a new language_ → branch `3b`
-3. **📝 Fix docs / write a blog / fix a typo** — _typo fix, dead link, use-case writeup_ → branch `3c`
-4. **🐛 Report a bug** — _something broke; I'll help turn it into a high-quality issue_ → branch `3d` (issue path, no PR)
+1. **🎨 Ship a Skill or Design System** — _a Skill, Design System, or template I want to contribute upstream_ → branch `3a`
+2. **🧩 Ship a plugin** — _wrap something I made (a prototype, deck, image bundle, etc.) into a portable OD plugin folder_ → branch `3e`
+3. **🌍 Translate OD docs** — _README / QUICKSTART / CONTRIBUTING into a new language_ → branch `3b`
+4. **📝 Fix docs / write a blog / fix a typo** — _typo fix, dead link, use-case writeup_ → branch `3c`
+5. **🐛 Report a bug** — _something broke; I'll help turn it into a high-quality issue_ → branch `3d` (issue path, no PR)
 
-Each branch below is self-contained. Steps 7–8 (preview + push) are shared across branches `3a`/`3b`/`3c`. Branch `3d` skips them entirely.
+Each branch below is self-contained. Steps 7–8 (preview + push) are shared across branches `3a`/`3b`/`3c`/`3e`. Branch `3d` skips them entirely.
 
 ---
 
@@ -269,6 +270,83 @@ bash "$SKILL_DIR/scripts/create-issue.sh" \
 
 ---
 
+### Step 3e — Plugin submission
+
+A plugin is a portable agent-skill folder with an `open-design.json` sidecar. Lands at `plugins/community/<plugin-id>/` by default. See `references/od-repo-map.md` for layout details and the `plugins/spec/` reference docs in the workdir.
+
+**3e.1** Setup workspace:
+
+```bash
+bash "$SKILL_DIR/scripts/setup-workspace.sh" plugin <plugin-id>
+# capture WORKDIR
+```
+
+`<plugin-id>` is the kebab-case slug the user picks in 3e.2.
+
+**3e.2** Collect 5 short fields. Translate the question text into the user's chat language; keep the enum values English (they map to the manifest schema).
+
+| # | Question | Type | Validation |
+|---|---|---|---|
+| Q1 | "What's the local path to your work?" | free-text | path must exist on disk |
+| Q2 | "What's it called? Pick a short kebab-case id (e.g. `editorial-landing`)" | free-text | `^[a-z][a-z0-9]*(-[a-z0-9]+)*$` |
+| Q3 | "Which lane?" | `AskUserQuestion` 4 options visible at a time | one of: `create`, `import`, `export`, `share`, `deploy`, `refine`, `extend` |
+| Q4 | "Which output mode?" | `AskUserQuestion` 4 options visible at a time | one of: `prototype`, `deck`, `live-artifact`, `image`, `video`, `hyperframes`, `audio`, `design-system` |
+| Q5 | "One sentence describing what this plugin does (becomes the marketplace description)" | free-text | non-empty |
+
+For the lane and mode pickers, **break the enums into 2 separate `AskUserQuestion` calls** if you need more than 4 options — `AskUserQuestion` caps at 4 options per call. Suggested groupings:
+
+- **Lanes**: first card { create, import, export, share }; second card { deploy, refine, extend }.
+- **Modes**: first card { prototype, deck, live-artifact, image }; second card { video, hyperframes, audio, design-system }.
+
+**3e.3** Scaffold from the templates already shipped in the workdir:
+
+```bash
+bash "$SKILL_DIR/scripts/scaffold-plugin.sh" \
+  --workdir "$WORKDIR" \
+  --plugin-id "<plugin-id>" \
+  --title "<Plugin Title>" \
+  --lane "<lane>" \
+  --mode "<mode>" \
+  --description "<one-sentence description from Q5>"
+```
+
+The script copies `plugins/spec/templates/{SKILL,open-design,README,README.zh-CN}.template.*` into `$WORKDIR/plugins/community/<plugin-id>/` and substitutes the user-supplied fields. It refuses to overwrite an existing folder. Capture `TARGET_DIR`, `MANIFEST_PATH`, `SKILL_PATH` from stdout.
+
+**3e.4** Copy the user's artifact (path from Q1) into the right slot under `$TARGET_DIR/`. Use this routing rule:
+
+| If the user's path is… | Drop it under… | Update the manifest so… |
+|---|---|---|
+| a folder containing `index.html` (or other web bundle) | `$TARGET_DIR/preview/` | `od.preview.entry` points at `./preview/index.html` |
+| a single image file | `$TARGET_DIR/preview/cover.png` (rename) | `od.preview.entry` points at `./preview/cover.png`, `od.preview.type` = `"image"` |
+| a folder of images | `$TARGET_DIR/preview/` (copy as-is) | add `od.useCase.exampleOutputs[]` entries pointing at each |
+| `.md` / `.txt` content | `$TARGET_DIR/assets/` | reference from the SKILL.md body where useful |
+| a `SKILL.md` already (the user already drafted one) | overwrite `$TARGET_DIR/SKILL.md` | keep the scaffolded `open-design.json`; merge user's frontmatter into it |
+
+When in doubt, default to dropping the artifact under `assets/` and ask the user whether they'd prefer it as the preview entry. The scaffolded manifest's path-typed fields (`compat.agentSkills[].path`, `od.context.skills[].path`) initially point only at `./SKILL.md`; add more as needed.
+
+**3e.5** Validate:
+
+```bash
+bash "$SKILL_DIR/scripts/validate-plugin.sh" "$TARGET_DIR"
+```
+
+The validator runs schema and path checks: required manifest fields, path-typed fields resolve on disk, lane and mode are from the enums, capabilities are from the known set. On `RESULT=fail` → surface the FAIL lines verbatim, ask the user to fix (or tell the agent which manifest field needs an update), retry. **Never push a failing plugin.**
+
+**3e.6** Render `templates/PR-BODY-plugin.md` with substitutions:
+- `{{PLUGIN_ID}}`, `{{PLUGIN_VERSION}}` (from manifest, default `0.1.0`)
+- `{{LANE}}`, `{{MODE}}`, `{{DESCRIPTION}}`
+- `{{LONGER_NOTES}}` (optional 1–2 paragraphs from the agent: motivation, what's interesting about this artifact)
+- `{{TRIGGER_EXAMPLES}}` (2–3 example chat prompts users would type to invoke this plugin)
+- `{{CAPABILITIES_LIST}}` (bullet list pulled from `od.capabilities`)
+- `{{SCREENSHOTS_OR_EXAMPLES}}` (Markdown image block referencing `./preview/...` or `./assets/...`, or "_(no preview supplied)_")
+- `{{DISCORD_INVITE}}` from `$OD_DISCORD_INVITE`
+
+Write to `$WORKDIR/.od-contrib/PR-BODY.md`.
+
+→ Jump to **Step 7**.
+
+---
+
 ## Step 7 — Preview + confirm (shared, PR branches only)
 
 Show the user a clean summary:
@@ -297,12 +375,15 @@ Never push without an explicit "Ship it".
 ```bash
 bash "$SKILL_DIR/scripts/create-pr.sh" \
   --workdir "$WORKDIR" \
-  --type "<skill|design-system|i18n|docs>" \
+  --type "<skill|design-system|i18n|docs|plugin>" \
   --title "<PR title from references/newcomer-tone.md>" \
   --body-file "$WORKDIR/.od-contrib/PR-BODY.md"
 ```
 
 Print the PR URL on its own line. Done.
+
+Title conventions for the new plugin branch (extends `references/newcomer-tone.md`):
+- `Add plugin: <Plugin Title>` for the community submission case.
 
 ---
 

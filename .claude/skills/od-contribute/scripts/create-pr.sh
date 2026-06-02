@@ -29,7 +29,7 @@ while (($#)); do
 done
 
 [[ -n "$WORKDIR"   ]] || od::die "--workdir required"
-[[ -n "$TYPE"      ]] || od::die "--type required (skill|design-system|i18n|docs)"
+[[ -n "$TYPE"      ]] || od::die "--type required (skill|design-system|i18n|docs|plugin)"
 [[ -n "$TITLE"     ]] || od::die "--title required"
 [[ -f "$BODY_FILE" ]] || od::die "--body-file does not exist: $BODY_FILE"
 [[ -d "$WORKDIR/.git" ]] || od::die "not a git workdir: $WORKDIR"
@@ -90,6 +90,7 @@ case "$TYPE" in
   design-system) LABELS+=("good first issue" "enhancement") ;;
   i18n)          LABELS+=("i18n" "documentation") ;;
   docs)          LABELS+=("documentation") ;;
+  plugin)        LABELS+=("good first issue" "enhancement") ;;
 esac
 
 LABEL_FLAGS=()
