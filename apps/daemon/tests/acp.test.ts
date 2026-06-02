@@ -237,6 +237,57 @@ test('attachAcpSession includes image attachments as ACP resource links', () => 
   });
 });
 
+test('attachAcpSession does not fail a tool-only AMR turn that emits no assistant text', () => {
+  const child = new FakeAcpChild();
+  const events: Array<{ event: string; payload: unknown }> = [];
+
+  attachAcpSession({
+    child: child as never,
+    prompt: 'change all card backgrounds to gray',
+    cwd: '/tmp/od-project',
+    model: null,
+    mcpServers: [],
+    modelUnavailableErrorCode: 'AMR_MODEL_UNAVAILABLE',
+    send: (event, payload) => events.push({ event, payload }),
+  });
+
+  writeAcpResult(child, 1, {});
+  writeAcpResult(child, 2, { sessionId: 'session-1' });
+  // The model does real work via a tool/file edit but emits no closing assistant text.
+  writeAcpUpdate(child, { sessionUpdate: 'tool_call', toolCallId: 'tc-1', title: 'edit', status: 'pending' });
+  writeAcpUpdate(child, { sessionUpdate: 'tool_call_update', toolCallId: 'tc-1', status: 'completed' });
+  writeAcpResult(child, 3, { usage: { inputTokens: 1, outputTokens: 2 } });
+
+  const errorEvents = events.filter((entry) => entry.event === 'error');
+  assert.deepEqual(errorEvents, [], 'a turn that produced tool calls must not be reported as model-unavailable');
+});
+
+test('attachAcpSession still fails an AMR turn that produces no text and no tool calls', () => {
+  const child = new FakeAcpChild();
+  const events: Array<{ event: string; payload: unknown }> = [];
+
+  attachAcpSession({
+    child: child as never,
+    prompt: 'do something',
+    cwd: '/tmp/od-project',
+    model: null,
+    mcpServers: [],
+    modelUnavailableErrorCode: 'AMR_MODEL_UNAVAILABLE',
+    send: (event, payload) => events.push({ event, payload }),
+  });
+
+  writeAcpResult(child, 1, {});
+  writeAcpResult(child, 2, { sessionId: 'session-1' });
+  writeAcpResult(child, 3, {}); // empty turn: no updates at all
+
+  const errorEvents = events.filter((entry) => entry.event === 'error');
+  assert.equal(errorEvents.length, 1, 'a genuinely empty turn must still fail');
+  assert.match(
+    (errorEvents[0]?.payload as { message?: string }).message ?? '',
+    /without producing any assistant text/,
+  );
+});
+
 test('attachAcpSession exposes abort and sends session cancel after session creation', () => {
   const child = new FakeAcpChild();
   const writes: string[] = [];
@@ -326,6 +377,9 @@ function parseRpcWrites(writes: string[]): Array<Record<string, unknown>> {
 
 function writeAcpResult(child: FakeAcpChild, id: number, result: unknown): void {
   child.stdout.write(`${JSON.stringify({ id, result })}\n`);
+}
+function writeAcpUpdate(child: FakeAcpChild, update: unknown): void {
+  child.stdout.write(`${JSON.stringify({ method: 'session/update', params: { update } })}\n`);
 }
 
 function agentModelStatuses(events: Array<{ event: string; payload: unknown }>): unknown[] {
