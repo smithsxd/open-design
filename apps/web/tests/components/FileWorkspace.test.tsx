@@ -127,6 +127,10 @@ function getTabByName(container: HTMLElement, name: RegExp): HTMLElement {
   return tab;
 }
 
+function renderedTabLabels(): string[] {
+  return screen.getAllByRole('tab').map((tab) => tab.textContent?.trim() ?? '');
+}
+
 function createDragDataTransfer() {
   const store = new Map<string, string>();
   return {
@@ -520,6 +524,91 @@ describe('FileWorkspace launcher tab creation', () => {
       expect(onTabsStateChange).toHaveBeenCalledWith({
         tabs: ['terminal:existing', 'chat:conversation-2'],
         active: 'chat:conversation-2',
+      });
+    });
+  });
+
+  it('renders terminal and side chat tabs after a Design Files-anchored browser tab', () => {
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{
+          tabs: ['terminal:term-1', 'chat:conversation-1'],
+          active: 'chat:conversation-1',
+          browserTabs: [
+            {
+              id: '__browser__:1',
+              insertAfter: '__design_files__',
+              label: 'Browser',
+            },
+          ],
+        }}
+        conversations={[
+          {
+            id: 'conversation-1',
+            projectId: 'project-1',
+            title: null,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ]}
+        onTabsStateChange={vi.fn()}
+      />,
+    );
+
+    expect(renderedTabLabels()).toEqual([
+      'Design Files',
+      'Browser',
+      'New Terminal',
+      'Side chat',
+    ]);
+  });
+
+  it('anchors a new browser after the visible tab tail', async () => {
+    const onTabsStateChange = vi.fn();
+    const rootBrowserTab = {
+      id: '__browser__:1',
+      insertAfter: '__design_files__',
+      label: 'Browser',
+    };
+
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{
+          tabs: ['terminal:term-1'],
+          active: 'terminal:term-1',
+          browserTabs: [rootBrowserTab],
+        }}
+        onTabsStateChange={onTabsStateChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('workspace-add-tab'));
+    fireEvent.click(await screen.findByRole('button', { name: /New Browser/i }));
+
+    await waitFor(() => {
+      expect(onTabsStateChange).toHaveBeenCalledWith({
+        tabs: ['terminal:term-1'],
+        active: '__browser__:2',
+        browserTabs: [
+          rootBrowserTab,
+          {
+            id: '__browser__:2',
+            insertAfter: 'terminal:term-1',
+            label: 'Browser 2',
+          },
+        ],
       });
     });
   });

@@ -1122,7 +1122,31 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
           <div className="home-hero__foot-left">
             <button
               type="button"
-              className="home-hero__attach"
+              className={`home-hero__tool home-hero__context-trigger${pickerOpen ? ' is-active' : ''}`}
+              data-testid="home-hero-context-trigger"
+              onClick={() => {
+                trackHomeChatComposerClick(analytics.track, {
+                  page_name: 'home',
+                  area: 'chat_composer',
+                  element: 'action_chip',
+                });
+                editorRef.current?.focus();
+                if (pickerOpen) return;
+                editorRef.current?.replaceActiveTrigger('@');
+              }}
+              title={t('homeHero.contextSurfaces')}
+              aria-label={t('homeHero.contextSurfaces')}
+              aria-haspopup="listbox"
+              aria-expanded={pickerOpen}
+              aria-controls="home-hero-context-picker"
+            >
+              <span className="home-hero__tool-at" aria-hidden>
+                @
+              </span>
+            </button>
+            <button
+              type="button"
+              className="home-hero__tool home-hero__attach"
               data-testid="home-hero-attach"
               onClick={() => {
                 trackHomeChatComposerClick(analytics.track, {
@@ -1174,7 +1198,8 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
             title={canSubmit ? t('homeHero.run') : t('homeHero.typeSomethingToRun')}
             aria-label={t('homeHero.run')}
           >
-            <Icon name="arrow-up" size={17} />
+            <Icon name="send" size={13} />
+            <span>{t('chat.send')}</span>
           </button>
         </div>
       </div>

@@ -62,7 +62,7 @@ describe('ChatComposer /search command', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(onSend).toHaveBeenCalledWith(
       '',
-      [{ path: 'brief.pdf', name: 'brief.pdf', kind: 'file', size: 5 }],
+      [{ path: 'brief.pdf', name: 'brief.pdf', kind: 'file', size: 5, order: 0 }],
       [],
       undefined,
     );
@@ -165,12 +165,12 @@ describe('ChatComposer /search command', () => {
     expect(prompt).toContain('first note');
     expect(prompt).toContain('second note');
     expect(attachments).toEqual([
-      { path: 'uploads/second.png', name: 'second.png', kind: 'image' },
-      { path: 'uploads/first.png', name: 'first.png', kind: 'image' },
+      { path: 'uploads/first.png', name: 'first.png', kind: 'image', order: 0 },
+      { path: 'uploads/second.png', name: 'second.png', kind: 'image', order: 1 },
     ]);
     expect(commentAttachments).toHaveLength(2);
-    expect(commentAttachments[0]?.screenshotPath).toBe('uploads/second.png');
-    expect(commentAttachments[1]?.screenshotPath).toBe('uploads/first.png');
+    expect(commentAttachments[0]?.screenshotPath).toBe('uploads/first.png');
+    expect(commentAttachments[1]?.screenshotPath).toBe('uploads/second.png');
     expect(commentAttachments[0]?.id).not.toBe(commentAttachments[1]?.id);
   });
 
@@ -206,7 +206,7 @@ describe('ChatComposer /search command', () => {
     ]);
     expect(onSend).toHaveBeenCalledWith(
       'please update this spot',
-      [{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image' }],
+      [{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image', order: 0 }],
       [],
       undefined,
     );
@@ -253,7 +253,7 @@ describe('ChatComposer /search command', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     const [prompt, attachments, commentAttachments] = onSend.mock.calls[0]!;
     expect(prompt).toBe('make this card clearer');
-    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image' }]);
+    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image', order: 0 }]);
     expect(commentAttachments).toHaveLength(1);
     expect(commentAttachments[0]).toMatchObject({
       selectionKind: 'visual',
@@ -306,7 +306,7 @@ describe('ChatComposer /search command', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     const [prompt, attachments, commentAttachments] = onSend.mock.calls[0]!;
     expect(prompt).toBe('review this before sending');
-    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image' }]);
+    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image', order: 0 }]);
     expect(commentAttachments).toHaveLength(1);
     expect(commentAttachments[0]).toMatchObject({
       selectionKind: 'visual',
@@ -363,7 +363,7 @@ describe('ChatComposer /search command', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     const [prompt, attachments, commentAttachments] = onSend.mock.calls[0]!;
     expect(prompt).toBe('tighten this area');
-    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image' }]);
+    expect(attachments).toEqual([{ path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image', order: 0 }]);
     expect(commentAttachments).toHaveLength(1);
     expect(commentAttachments[0]).toMatchObject({
       selectionKind: 'visual',

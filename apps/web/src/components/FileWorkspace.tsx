@@ -3285,6 +3285,7 @@ function orderWorkspaceTabs(
     kind: 'file',
     name,
   }));
+  let rootAnchorInsertIndex = 0;
 
   for (const browserTab of browserTabs) {
     const entry: WorkspaceOrderedTab = {
@@ -3294,7 +3295,8 @@ function orderWorkspaceTabs(
     };
     const anchor = browserTab.insertAfter;
     if (!anchor || anchor === DESIGN_FILES_TAB || anchor === DESIGN_SYSTEM_TAB) {
-      ordered.push(entry);
+      ordered.splice(rootAnchorInsertIndex, 0, entry);
+      rootAnchorInsertIndex += 1;
       continue;
     }
     const anchorIndex = ordered.findIndex((candidate) => candidate.id === anchor);

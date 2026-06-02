@@ -136,6 +136,70 @@ export function liveSnapshotForComment(
   };
 }
 
+// Overlay-only structural equality: same element/file/position, regardless of
+// textual content. Cheap pre-check before the fuller comparison below.
+export function commentSnapshotOverlayEqual(
+  a: PreviewCommentSnapshot,
+  b: PreviewCommentSnapshot,
+): boolean {
+  const positionA = normalizePosition(a.position);
+  const positionB = normalizePosition(b.position);
+  return (
+    a.elementId === b.elementId
+    && a.filePath === b.filePath
+    && positionA.x === positionB.x
+    && positionA.y === positionB.y
+    && positionA.width === positionB.width
+    && positionA.height === positionB.height
+  );
+}
+
+// Full structural equality between two live comment snapshots. `od:comment-hover`
+// and `od:comment-active-target-update` fire on every pointermove over a target,
+// so the FileViewer handlers use this to skip a `liveCommentTargets` Map clone +
+// redundant state write when the hovered/active target is unchanged. Restored
+// from origin/main (this branch had dropped the guard, regressing the hover path
+// to a full-Map clone per frame). `slideIndex` is intentionally not compared —
+// PreviewCommentSnapshot does not carry it on this branch.
+export function commentSnapshotEqual(
+  a: PreviewCommentSnapshot,
+  b: PreviewCommentSnapshot,
+): boolean {
+  if (!commentSnapshotOverlayEqual(a, b)) return false;
+  return (
+    a.selector === b.selector
+    && a.label === b.label
+    && trimContextText(a.text) === trimContextText(b.text)
+    && trimHtmlHint(a.htmlHint) === trimHtmlHint(b.htmlHint)
+    && normalizeSelectionKind(a.selectionKind) === normalizeSelectionKind(b.selectionKind)
+    && normalizeMemberCount(a.memberCount) === normalizeMemberCount(b.memberCount)
+    && JSON.stringify(normalizeStyle(a.style) ?? null) === JSON.stringify(normalizeStyle(b.style) ?? null)
+    && JSON.stringify(normalizeMembers(a.podMembers)) === JSON.stringify(normalizeMembers(b.podMembers))
+    && normalizeHoverPoint(a.hoverPoint).x === normalizeHoverPoint(b.hoverPoint).x
+    && normalizeHoverPoint(a.hoverPoint).y === normalizeHoverPoint(b.hoverPoint).y
+  );
+}
+
+function normalizeSelectionKind(
+  selectionKind: PreviewCommentSnapshot['selectionKind'],
+): PreviewCommentSelectionKind {
+  return selectionKind === 'pod' ? 'pod' : 'element';
+}
+
+function normalizeMemberCount(value: number | undefined): number | undefined {
+  return Number.isFinite(value) ? Math.round(value as number) : undefined;
+}
+
+function normalizeHoverPoint(
+  input: PreviewCommentSnapshot['hoverPoint'],
+): { x: number | undefined; y: number | undefined } {
+  if (!input) return { x: undefined, y: undefined };
+  return {
+    x: Number.isFinite(input.x) ? Math.round(input.x) : undefined,
+    y: Number.isFinite(input.y) ? Math.round(input.y) : undefined,
+  };
+}
+
 export function commentToAttachment(
   comment: PreviewComment,
   order: number,

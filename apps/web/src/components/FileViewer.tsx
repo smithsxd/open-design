@@ -103,6 +103,7 @@ import { Toast } from './Toast';
 import { PreviewDrawOverlay } from './PreviewDrawOverlay';
 import {
   buildBoardCommentAttachments,
+  commentSnapshotEqual,
   commentTargetDisplayName,
   commentsToAttachments,
   liveSnapshotForComment,
@@ -5303,13 +5304,24 @@ function HtmlViewer({
       if (data.type === 'od:comment-active-target-update') {
         const snapshot = snapshotFromData(data);
         if (!snapshot.elementId) return;
-        setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
-        setActiveCommentTarget((current) => (
-          current && current.elementId === snapshot.elementId ? snapshot : current
-        ));
-        setHoveredCommentTarget((current) => (
-          current && current.elementId === snapshot.elementId ? snapshot : current
-        ));
+        // Fires on every pointermove while a target is active — skip the Map
+        // clone and the active/hovered state writes when nothing changed, so a
+        // steady hover doesn't re-render the whole overlay each frame.
+        setLiveCommentTargets((current) => {
+          const existing = current.get(snapshot.elementId);
+          if (existing && commentSnapshotEqual(existing, snapshot)) return current;
+          return new Map(current).set(snapshot.elementId, snapshot);
+        });
+        setActiveCommentTarget((current) =>
+          current && current.elementId === snapshot.elementId && !commentSnapshotEqual(current, snapshot)
+            ? snapshot
+            : current,
+        );
+        setHoveredCommentTarget((current) =>
+          current && current.elementId === snapshot.elementId && !commentSnapshotEqual(current, snapshot)
+            ? snapshot
+            : current,
+        );
         return;
       }
       if (data.type === 'od:comment-leave') {
@@ -5319,8 +5331,18 @@ function HtmlViewer({
       if (data.type === 'od:comment-hover') {
         const snapshot = snapshotFromData(data);
         if (!snapshot.elementId) return;
-        setHoveredCommentTarget(snapshot);
-        setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
+        // Hover repeats the same snapshot per pointermove frame — keep the
+        // existing state object (and skip the Map clone) when it is unchanged.
+        setHoveredCommentTarget((current) =>
+          current && current.elementId === snapshot.elementId && commentSnapshotEqual(current, snapshot)
+            ? current
+            : snapshot,
+        );
+        setLiveCommentTargets((current) => {
+          const existing = current.get(snapshot.elementId);
+          if (existing && commentSnapshotEqual(existing, snapshot)) return current;
+          return new Map(current).set(snapshot.elementId, snapshot);
+        });
         return;
       }
       if (data.type === 'od:comment-target') {
@@ -5329,7 +5351,11 @@ function HtmlViewer({
         const shouldOpenComposer = boardMode || commentCreateMode;
         setActiveCommentTarget((current) => (shouldOpenComposer ? snapshot : current));
         setHoveredCommentTarget(snapshot);
-        setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
+        setLiveCommentTargets((current) => {
+          const existing = current.get(snapshot.elementId);
+          if (existing && commentSnapshotEqual(existing, snapshot)) return current;
+          return new Map(current).set(snapshot.elementId, snapshot);
+        });
         if (shouldOpenComposer) {
           setActivePreviewCommentId(null);
           setCommentDraft('');

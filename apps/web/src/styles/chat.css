@@ -258,31 +258,31 @@
   justify-content: flex-end;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 4px;
-  margin: 2px 0 5px;
-  max-width: min(100%, 460px);
+  gap: 3px;
+  margin: 1px 0 4px;
+  max-width: min(100%, 430px);
   margin-left: auto;
   overflow: hidden;
 }
 .msg-mode-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 22px;
+  gap: 3px;
+  height: 16px;
   flex: 0 0 auto;
-  padding: 0 6px;
-  border-radius: 7px;
+  padding: 0 4px;
+  border-radius: 5px;
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   background: color-mix(in srgb, var(--accent-tint) 72%, var(--bg));
   color: color-mix(in srgb, var(--accent) 72%, var(--text-strong));
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
 .msg-mode-chip svg {
-  width: 11px;
-  height: 11px;
+  width: 8px;
+  height: 8px;
 }
 .msg-mode-chip--chat {
   border-color: color-mix(in srgb, var(--text-soft) 22%, var(--border));
@@ -295,7 +295,7 @@
   justify-content: flex-end;
   flex-wrap: nowrap;
   flex: 0 1 auto;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -303,16 +303,16 @@
 .msg-plugin-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 22px;
+  gap: 3px;
+  height: 16px;
   flex: 0 1 auto;
   min-width: 0;
   margin: 0;
-  padding: 2px 6px 2px 5px;
-  border-radius: 7px;
+  padding: 0 4px;
+  border-radius: 5px;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
-  font-size: 10.5px;
+  font-size: 9.5px;
   line-height: 1;
   color: var(--text-muted);
   max-width: 100%;
@@ -338,8 +338,8 @@
   outline-offset: 2px;
 }
 .msg-plugin-chip__dot {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
   background: var(--accent);
   flex: 0 0 auto;
@@ -351,20 +351,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  border-radius: 5px;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-subtle));
   color: var(--text-muted);
 }
 .msg-plugin-chip__icon svg {
-  width: 11px;
-  height: 11px;
+  width: 8px;
+  height: 8px;
 }
 .msg-plugin-chip--workspace {
-  gap: 5px;
-  padding-left: 3px;
+  gap: 3px;
+  padding-left: 2px;
   background: color-mix(in srgb, var(--bg-panel) 82%, var(--bg-subtle));
   border-color: color-mix(in srgb, var(--text-muted) 18%, var(--border));
 }
@@ -376,7 +376,7 @@
   display: inline-flex;
   align-items: baseline;
   flex: 1 1 auto;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -384,7 +384,7 @@
 }
 .msg-plugin-chip__kind {
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   font-weight: 600;
   flex: 0 0 auto;
   color: var(--text-faint);
@@ -407,9 +407,9 @@
 }
 .msg-plugin-chip__task {
   flex: 0 1 auto;
-  max-width: 68px;
+  max-width: 54px;
   border-left: 1px solid var(--border);
-  padding-left: 5px;
+  padding-left: 4px;
 }
 .msg-plugin-context .context-chip-strip {
   justify-content: flex-end;
@@ -1016,6 +1016,9 @@
   width: 320px;
   flex: 0 0 320px;
   background: var(--bg-panel);
+  max-height: min(360px, calc(100vh - 84px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .session-mode-card__head {
   display: flex;
@@ -1224,8 +1227,8 @@
   align-items: center;
   gap: 5px;
   min-width: 0;
-  min-height: 30px;
-  padding: 3px 4px;
+  min-height: 28px;
+  padding: 2px 4px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -1273,37 +1276,43 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .chat-queued-send-title {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .chat-queued-send-chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chat-queued-send-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 0 6px;
-  border-radius: 999px;
+  height: 18px;
+  max-width: 124px;
+  padding: 0 5px;
+  border-radius: 5px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   color: var(--text-muted);
-  font-size: 10.5px;
-  line-height: 1.45;
+  font-size: 9.5px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1422,18 +1431,18 @@
 .staged-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
+  gap: 3px;
+  height: 18px;
   min-width: 0;
-  min-height: 24px;
-  padding: 2px 5px 2px 2px;
+  min-height: 18px;
+  padding: 0 4px 0 2px;
   background: color-mix(in srgb, var(--bg-panel) 96%, var(--bg-subtle));
   border: 1px solid var(--border-soft);
-  border-radius: 7px;
-  max-width: min(210px, 100%);
+  border-radius: 5px;
+  max-width: min(190px, 100%);
   overflow: hidden;
   white-space: nowrap;
-  font-size: 10.5px;
+  font-size: 9.5px;
   line-height: 1;
   box-shadow: none;
   transition:
@@ -1448,26 +1457,55 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  border-radius: 5px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--text) 7%, var(--bg-subtle));
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 650;
   line-height: 1;
 }
 .staged-context-row {
-  padding-top: 2px;
+  padding-top: 1px;
 }
 .staged-context {
+  gap: 3px;
+  height: 18px;
+  min-height: 18px;
+  max-width: min(190px, 100%);
+  padding: 0 4px 0 2px;
+  border-radius: 5px;
+  font-size: 9.5px;
   background: color-mix(in srgb, var(--accent-tint) 30%, var(--bg-panel));
   border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
 }
 .staged-context .staged-icon {
+  width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 9%, var(--bg-subtle));
   color: var(--accent);
+}
+.staged-context .staged-icon svg {
+  width: 8px;
+  height: 8px;
+}
+.staged-context .staged-name {
+  max-width: 106px;
+  line-height: 14px;
+}
+.staged-context .staged-remove {
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
+  border-radius: 4px;
+}
+.staged-context .staged-remove svg {
+  width: 9px;
+  height: 9px;
 }
 .staged-context--mcp {
   background: color-mix(in srgb, var(--purple-bg) 34%, var(--bg-panel));
@@ -1500,15 +1538,15 @@
 }
 .staged-chip img {
   display: block;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   object-fit: cover;
 }
 .staged-preview-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
   max-width: 100%;
   flex: 1 1 auto;
@@ -1523,16 +1561,16 @@
   border-color: transparent;
 }
 .staged-preview-trigger img {
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
 }
 .staged-preview-trigger .staged-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 18px;
+  line-height: 14px;
 }
 .staged-preview-modal {
   position: fixed;
@@ -1621,16 +1659,16 @@
   color: var(--text);
 }
 .staged-icon {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: 5px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 4px;
   background: var(--bg-subtle);
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 10px;
 }
 .staged-icon svg {
   display: block;
@@ -1639,14 +1677,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 116px;
+  max-width: 106px;
   color: var(--text);
-  line-height: 16px;
+  line-height: 14px;
 }
 .staged-remove {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1656,10 +1694,12 @@
   color: var(--text-faint);
   cursor: pointer;
   line-height: 1;
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .staged-remove svg {
   display: block;
+  width: 9px;
+  height: 9px;
 }
 .staged-remove:hover { color: var(--red); background: var(--red-bg); }
 
@@ -1689,26 +1729,28 @@
 
 .user-attachments {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 .user-attachment {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
+  gap: 3px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0 5px 0 2px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 11.5px;
-  max-width: 240px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  max-width: 190px;
   color: var(--text);
   cursor: default;
   text-align: left;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 9.5px;
 }
 .user-attachment.openable { cursor: pointer; }
 .user-attachment.openable:hover {
@@ -1716,14 +1758,16 @@
   border-color: var(--accent);
 }
 .user-attachment img {
-  width: 28px;
-  height: 28px;
+  width: 16px;
+  height: 16px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 4px;
   display: block;
 }
 .user-attachment .staged-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 106px;
+  line-height: 14px;
 }
