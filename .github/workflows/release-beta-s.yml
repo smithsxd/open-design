@@ -226,22 +226,16 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     timeout-minutes: 45
     steps:
-      - name: Reset sparse checkout state
-        run: |
-          set -euo pipefail
-          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
-            git -C "$GITHUB_WORKSPACE" sparse-checkout disable || true
-            git -C "$GITHUB_WORKSPACE" ls-files -z | xargs -0 git -C "$GITHUB_WORKSPACE" update-index --no-skip-worktree || true
-          fi
-
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
           clean: false
           fetch-depth: 1
           lfs: false
+          path: _release-build
 
       - name: Build beta mac artifacts
+        working-directory: _release-build
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -268,7 +262,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Smoke beta mac packaged runtime
-        working-directory: e2e
+        working-directory: _release-build/e2e
         env:
           OD_PACKAGED_E2E_BUILD_JSON_PATH: ${{ runner.temp }}/mac-tools-pack-build.json
           OD_PACKAGED_E2E_BUILD_LOG_PATH: ${{ runner.temp }}/mac-tools-pack-build.log
@@ -300,6 +294,7 @@ jobs:
 
       - name: Prepare beta mac assets
         if: ${{ inputs.publish }}
+        working-directory: _release-build
         env:
           ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
