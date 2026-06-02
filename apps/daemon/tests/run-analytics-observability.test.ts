@@ -460,6 +460,131 @@ describe('scanRunEventsForUsageAnalytics', () => {
     expect(result.cache_hit_ratio).toBeCloseTo(50 / 150);
   });
 
+
+  it('prefers canonical token fields over alias fields instead of double-counting conflicting values', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [
+        {
+          event: 'agent',
+          data: {
+            type: 'usage',
+            usage: {
+              input_tokens: 220,
+              prompt_tokens: 999,
+              output_tokens: 22,
+              completion_tokens: 777,
+              total_tokens: 242,
+              totalTokens: 1_776,
+              cached_read_tokens: 20,
+            },
+          },
+        },
+      ],
+      'gpt-5.5',
+      20,
+    );
+
+    expect(result).toMatchObject({
+      input_tokens_provider: 220,
+      input_tokens_effective: 220,
+      output_tokens: 22,
+      total_tokens: 242,
+      cache_read_input_tokens: 20,
+      uncached_input_tokens: 200,
+      estimated_context_tokens: 200,
+      cache_token_source: 'openai',
+      token_count_source: 'provider_usage',
+    });
+    expect(result.cache_hit_ratio).toBeCloseTo(20 / 220);
+  });
+
+  it('falls back to totalTokens-only payloads without fabricating input/output splits', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [
+        {
+          event: 'agent',
+          data: {
+            type: 'usage',
+            usage: {
+              totalTokens: 345,
+            },
+          },
+        },
+      ],
+      'gpt-4.1',
+      0,
+    );
+
+    expect(result).toEqual({
+      total_tokens: 345,
+      cache_token_source: 'unavailable',
+      token_count_source: 'unknown',
+      agent_reported_model: null,
+    });
+  });
+
+  it('keeps anthropic cache write tokens additive while leaving uncached_input_tokens on provider input', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [
+        {
+          event: 'agent',
+          data: {
+            type: 'usage',
+            usage: {
+              input_tokens: 500,
+              output_tokens: 40,
+              cache_read_input_tokens: 120,
+              cache_creation_input_tokens: 30,
+            },
+          },
+        },
+      ],
+      'claude-opus-4-1',
+      50,
+    );
+
+    expect(result).toMatchObject({
+      input_tokens_provider: 500,
+      input_tokens_effective: 650,
+      output_tokens: 40,
+      total_tokens: 690,
+      cache_read_input_tokens: 120,
+      cache_creation_input_tokens: 30,
+      uncached_input_tokens: 500,
+      estimated_context_tokens: 600,
+      cache_token_source: 'anthropic',
+      token_count_source: 'provider_usage',
+    });
+    expect(result.cache_hit_ratio).toBeCloseTo(120 / 650);
+  });
+
+  it('preserves unknown token source when only cache-adjacent aliases exist without concrete input totals', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [
+        {
+          event: 'agent',
+          data: {
+            type: 'usage',
+            usage: {
+              cached_read_tokens: 33,
+              cached_write_tokens: 7,
+            },
+          },
+        },
+      ],
+      '',
+      0,
+    );
+
+    expect(result).toEqual({
+      cache_read_input_tokens: 33,
+      cache_creation_input_tokens: 7,
+      cache_token_source: 'openai',
+      token_count_source: 'unknown',
+      agent_reported_model: null,
+    });
+  });
+
   it('reports unknown token source for plain mock agents without usage events', () => {
     const result = scanRunEventsForUsageAnalytics(
       [{ event: 'agent', data: { type: 'text_delta', delta: 'plain output' } }],

@@ -1,4 +1,33 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../src/integrations/vela-errors.js', () => ({
+  classifyAmrAccountFailure(text: string) {
+    const value = String(text || '').toLowerCase();
+    if (value.includes('insufficient balance')) {
+      return { code: 'AMR_INSUFFICIENT_BALANCE' as const };
+    }
+    if (value.includes('authentication required') || value.includes('not authenticated') || value.includes('unauthorized')) {
+      return { code: 'AMR_AUTH_REQUIRED' as const };
+    }
+    return null;
+  },
+}));
+
+vi.mock('../src/runtimes/auth.js', () => ({
+  classifyAgentServiceFailure(text: string) {
+    const value = String(text || '').toLowerCase();
+    if (value.includes('authentication required') || value.includes('not authenticated')) {
+      return 'AGENT_AUTH_REQUIRED' as const;
+    }
+    if (value.includes('http 429') || value.includes('too many requests') || value.includes('session limit')) {
+      return 'RATE_LIMITED' as const;
+    }
+    if (value.includes('503 upstream unavailable') || value.includes('upstream unavailable')) {
+      return 'UPSTREAM_UNAVAILABLE' as const;
+    }
+    return null;
+  },
+}));
 
 import {
   classifyRunFailure,
@@ -66,6 +95,63 @@ describe('classifyRunFailure', () => {
       failure_stage: 'finalize',
       retryable: false,
       user_action: 'none',
+    });
+  });
+
+
+  it('prefers user cancellation over timeout-flavored status text when the run result is cancelled', () => {
+    expect(
+      classifyRunFailure({
+        result: 'cancelled',
+        status: {
+          status: 'canceled',
+          error: 'Agent stalled without emitting any new output for 120s.',
+          signal: 'SIGTERM',
+          exitCode: null,
+          errorCode: 'AGENT_SIGNAL_SIGTERM',
+        },
+        errorCode: 'AGENT_SIGNAL_SIGTERM',
+        events: [
+          errorEvent(
+            'AGENT_SIGNAL_SIGTERM',
+            'Agent stalled without emitting any new output for 120s.',
+            true,
+          ),
+        ],
+      }),
+    ).toEqual({
+      failure_category: 'user_cancel',
+      failure_stage: 'finalize',
+      retryable: false,
+      user_action: 'none',
+    });
+  });
+
+  it('prefers structured model-unavailable codes over timeout-like free text', () => {
+    expect(
+      classify(
+        'AMR_MODEL_UNAVAILABLE',
+        'Model selection timed out while the provider reported the model was unavailable.',
+      ),
+    ).toMatchObject({
+      failure_category: 'model_unavailable',
+      failure_stage: 'model_select',
+      retryable: false,
+      user_action: 'switch_model',
+    });
+  });
+
+  it('prefers prompt-too-large codes over empty-output fallback text', () => {
+    expect(
+      classify(
+        'AGENT_PROMPT_TOO_LARGE',
+        'The agent completed without producing any output because the context window exceeded the limit.',
+      ),
+    ).toMatchObject({
+      failure_category: 'prompt_too_large',
+      failure_stage: 'prompt_send',
+      retryable: false,
+      user_action: 'reduce_context',
     });
   });
 

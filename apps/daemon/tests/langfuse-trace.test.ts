@@ -811,6 +811,131 @@ describe('reportRunCompleted', () => {
     });
   });
 
+
+  it('classifies relay 413 responses as relay_413', async () => {
+    const relayConfig: TelemetrySinkConfig = {
+      kind: 'relay',
+      relayUrl: 'https://telemetry.open-design.ai/api/langfuse',
+      timeoutMs: 20_000,
+      retries: 0,
+    };
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('payload too large', { status: 413 }),
+    );
+    const result = await reportRunCompleted(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+      }),
+      {
+        config: relayConfig,
+        fetchImpl: fetchSpy as any,
+      },
+    );
+    expect(result).toEqual({
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'relay_413',
+    });
+  });
+
+  it('classifies relay 5xx responses as relay_5xx', async () => {
+    const relayConfig: TelemetrySinkConfig = {
+      kind: 'relay',
+      relayUrl: 'https://telemetry.open-design.ai/api/langfuse',
+      timeoutMs: 20_000,
+      retries: 0,
+    };
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('upstream unavailable', { status: 503 }),
+    );
+    const result = await reportRunCompleted(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+      }),
+      {
+        config: relayConfig,
+        fetchImpl: fetchSpy as any,
+      },
+    );
+    expect(result).toEqual({
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'relay_5xx',
+    });
+  });
+
+  it('classifies direct Langfuse 5xx responses as langfuse_5xx', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('server error', { status: 503 }),
+    );
+    const result = await reportRunCompleted(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+      }),
+      {
+        config: TEST_CONFIG,
+        fetchImpl: fetchSpy as any,
+      },
+    );
+    expect(result).toEqual({
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'langfuse_5xx',
+    });
+  });
+
+  it('classifies relay per-event 429s separately from generic 4xx', async () => {
+    const relayConfig: TelemetrySinkConfig = {
+      kind: 'relay',
+      relayUrl: 'https://telemetry.open-design.ai/api/langfuse',
+      timeoutMs: 20_000,
+      retries: 0,
+    };
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ successes: [], errors: [{ id: 'throttled', status: 429 }] }),
+        { status: 207 },
+      ),
+    );
+    const result = await reportRunCompleted(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+      }),
+      {
+        config: relayConfig,
+        fetchImpl: fetchSpy as any,
+      },
+    );
+    expect(result).toEqual({
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'relay_429',
+    });
+  });
+
+  it('classifies direct Langfuse per-event 5xx responses as langfuse_5xx', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ successes: [], errors: [{ id: 'lf-down', status: 503 }] }),
+        { status: 207 },
+      ),
+    );
+    const result = await reportRunCompleted(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+      }),
+      {
+        config: TEST_CONFIG,
+        fetchImpl: fetchSpy as any,
+      },
+    );
+    expect(result).toEqual({
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'langfuse_5xx',
+    });
+  });
+
   it('warns and drops when serialized batch exceeds the hard cap', async () => {
     // Per-field truncation already caps prompt/output, so we overflow the
     // hard cap by stuffing 50 artifact entries with very long slugs while
