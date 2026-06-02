@@ -168,7 +168,7 @@ Open Design 是这样一种产物：Anthropic 随 Claude Design 推出的 **Agen
 <tr>
 <td width="50%" valign="top">
 <img src="docs/screenshots/skills/dating-web.png" alt="Web 原型 dating-web" /><br/>
-<sub><b>Web 原型</b>——带滚动条、KPI、图表的编辑类仪表盘。直接从 <code>skills/dating-web/</code> 渲染。</sub>
+<sub><b>Web 原型</b>——带滚动条、KPI、图表的编辑类仪表盘。直接从 <code>design-templates/dating-web/</code> 渲染。</sub>
 </td>
 <td width="50%" valign="top">
 <img src="docs/screenshots/skills/gamified-app.png" alt="游戏化应用" /><br/>
@@ -214,7 +214,7 @@ Open Design 是这样一种产物：Anthropic 随 Claude Design 推出的 **Agen
 </td>
 <td width="50%" valign="top">
 <img src="docs/screenshots/skills/deck-swiss-international.png" alt="瑞士 Deck" /><br/>
-<sub><b>瑞士国际风格 Deck</b>——网格锚定、单色强调。<b>15 套 Deck 模板</b>和 <b>36 个主题</b>之一，位于 <code>skills/html-ppt-*/</code>。</sub>
+<sub><b>瑞士国际风格 Deck</b>——网格锚定、单色强调。<b>15 套 Deck 模板</b>和 <b>36 个主题</b>之一，位于 <code>design-templates/html-ppt-*/</code>。</sub>
 </td>
 </tr>
 </table>
@@ -254,7 +254,7 @@ Open Design 是这样一种产物：Anthropic 随 Claude Design 推出的 **Agen
 </tr>
 </table>
 
-11 个 HyperFrames 模板 + 39 个 Seedance 提示词随仓库一起发布。目录缩略图 © HeyGen，框架 Apache-2.0。OD 专属渲染流程（合成缓存、sandbox-exec 变通方案、MP4-as-chip）详见 [`skills/hyperframes/`](skills/hyperframes/)。
+11 个 HyperFrames 模板 + 39 个 Seedance 提示词随仓库一起发布。目录缩略图 © HeyGen，框架 Apache-2.0。OD 专属渲染流程（合成缓存、sandbox-exec 变通方案、MP4-as-chip）详见 [`design-templates/hyperframes/`](design-templates/hyperframes/)。
 
 [hyperframes]: https://github.com/heygen-com/hyperframes
 
@@ -385,26 +385,26 @@ od skill list --scenario marketing
 
 | 技能 | 模式 | 场景 | 产出物 |
 |---|---|---|---|
-| [`web-prototype`](skills/web-prototype/) | prototype | design | 默认落地页 / 主视觉 |
-| [`saas-landing`](skills/saas-landing/) | prototype | marketing | 主视觉 / 功能 / 定价 / CTA |
-| [`dashboard`](skills/dashboard/) | prototype | operation | 管理后台 / 数据分析（带侧边栏） |
-| [`mobile-app`](skills/mobile-app/) | prototype | design | iPhone 15 Pro / Pixel 外框应用 |
-| [`mobile-onboarding`](skills/mobile-onboarding/) | prototype | design | 启动页 · 价值主张 · 登录流程 |
-| [`social-carousel`](skills/social-carousel/) | prototype | marketing | 3 卡 1080×1080 轮播图 |
-| [`email-marketing`](skills/email-marketing/) | prototype | marketing | 表格降级安全的品牌邮件 |
-| [`magazine-poster`](skills/magazine-poster/) | prototype | marketing | 单页杂志版面 |
-| [`motion-frames`](skills/motion-frames/) | prototype | marketing | 循环 CSS 动效主视觉 |
-| [`sprite-animation`](skills/sprite-animation/) | prototype | marketing | 8-bit 像素动画讲解 |
-| [`pm-spec`](skills/pm-spec/) | prototype | product | PM 规范文档（含目录 + 决策日志） |
-| [`team-okrs`](skills/team-okrs/) | prototype | product | OKR 记分表 |
-| [`eng-runbook`](skills/eng-runbook/) | prototype | engineering | 事故应急手册 |
-| [`finance-report`](skills/finance-report/) | prototype | finance | 高管财务摘要 |
-| [`hr-onboarding`](skills/hr-onboarding/) | prototype | hr | 角色入职计划 |
-| [`guizang-ppt`](skills/guizang-ppt/) | deck | marketing | 杂志风格 Web PPT（deck 默认） |
-| [`html-ppt-*`](skills/) | deck | marketing | 15 套 Deck 模板 × 36 个主题（主模板在 [`skills/html-ppt/`](skills/html-ppt/)） |
-| [`hyperframes`](skills/hyperframes/) | video | marketing | HTML → MP4 动态图形（HeyGen OSS 框架） |
-| [`critique`](skills/critique/) | utility | design | 五维自评记分表 |
-| [`tweaks`](skills/tweaks/) | utility | design | AI 输出的调参面板 manifest |
+| [`web-prototype`](design-templates/web-prototype/) | prototype | design | 默认落地页 / 主视觉 |
+| [`saas-landing`](design-templates/saas-landing/) | prototype | marketing | 主视觉 / 功能 / 定价 / CTA |
+| [`dashboard`](design-templates/dashboard/) | prototype | operation | 管理后台 / 数据分析（带侧边栏） |
+| [`mobile-app`](design-templates/mobile-app/) | prototype | design | iPhone 15 Pro / Pixel 外框应用 |
+| [`mobile-onboarding`](design-templates/mobile-onboarding/) | prototype | design | 启动页 · 价值主张 · 登录流程 |
+| [`social-carousel`](design-templates/social-carousel/) | prototype | marketing | 3 卡 1080×1080 轮播图 |
+| [`email-marketing`](design-templates/email-marketing/) | prototype | marketing | 表格降级安全的品牌邮件 |
+| [`magazine-poster`](design-templates/magazine-poster/) | prototype | marketing | 单页杂志版面 |
+| [`motion-frames`](design-templates/motion-frames/) | prototype | marketing | 循环 CSS 动效主视觉 |
+| [`sprite-animation`](design-templates/sprite-animation/) | prototype | marketing | 8-bit 像素动画讲解 |
+| [`pm-spec`](design-templates/pm-spec/) | prototype | product | PM 规范文档（含目录 + 决策日志） |
+| [`team-okrs`](design-templates/team-okrs/) | prototype | product | OKR 记分表 |
+| [`eng-runbook`](design-templates/eng-runbook/) | prototype | engineering | 事故应急手册 |
+| [`finance-report`](design-templates/finance-report/) | prototype | finance | 高管财务摘要 |
+| [`hr-onboarding`](design-templates/hr-onboarding/) | prototype | hr | 角色入职计划 |
+| [`guizang-ppt`](design-templates/guizang-ppt/) | deck | marketing | 杂志风格 Web PPT（deck 默认） |
+| [`html-ppt-*`](design-templates/) | deck | marketing | 15 套 Deck 模板 × 36 个主题（主模板在 [`design-templates/html-ppt/`](design-templates/html-ppt/)） |
+| [`hyperframes`](design-templates/hyperframes/) | video | marketing | HTML → MP4 动态图形（HeyGen OSS 框架） |
+| [`critique`](design-templates/critique/) | utility | design | 五维自评记分表 |
+| [`tweaks`](design-templates/tweaks/) | utility | design | AI 输出的调参面板 manifest |
 
 完整技能协议 → [`docs/skills-protocol.md`](docs/skills-protocol.md)。技能注册端点：`GET /api/skills`。
 
@@ -672,7 +672,7 @@ gh pr create --fill
 |---|---|
 | [Claude Design][cd] | 本仓库作为开源替代品所对标的闭源产品。 |
 | [`alchaincyf/huashu-design`](https://github.com/alchaincyf/huashu-design) | 设计哲学指南针——初级设计师工作流、品牌资产协议、反 AI 泛滥清单、五维评审。 |
-| [`op7418/guizang-ppt-skill`](https://github.com/op7418/guizang-ppt-skill) | 杂志风格 Web PPT 技能，完整打包在 [`skills/guizang-ppt/`](skills/guizang-ppt/) 下。Deck 模式默认技能。 |
+| [`op7418/guizang-ppt-skill`](https://github.com/op7418/guizang-ppt-skill) | 杂志风格 Web PPT 技能，完整打包在 [`design-templates/guizang-ppt/`](design-templates/guizang-ppt/) 下。Deck 模式默认技能。 |
 | [`lewislulu/html-ppt-skill`](https://github.com/lewislulu/html-ppt-skill) | HTML PPT Studio 系列——15 套 Deck 模板，36 个主题，31 种页面布局，动画运行时，磁力卡片演示模式。 |
 | [`OpenCoworkAI/open-codesign`](https://github.com/OpenCoworkAI/open-codesign) | 首个开源 Claude Design 替代品；我们借鉴的 UX 模式（流式工件循环、沙箱 iframe、实时 Agent 面板）。 |
 | [`multica-ai/multica`](https://github.com/multica-ai/multica) | 守护进程 + 适配器架构——PATH 扫描 Agent 检测、本地守护进程作为唯一特权进程。 |
@@ -687,4 +687,4 @@ gh pr create --fill
 
 ## 许可证
 
-Apache-2.0。打包的 `skills/guizang-ppt/` 保留其原始 [LICENSE](skills/guizang-ppt/LICENSE)（MIT，[@op7418](https://github.com/op7418)）。打包的 `skills/html-ppt/` 保留其原始 [LICENSE](skills/html-ppt/LICENSE)（MIT，[@lewislulu](https://github.com/lewislulu)）。
+Apache-2.0。打包的 `design-templates/guizang-ppt/` 保留其原始 [LICENSE](design-templates/guizang-ppt/LICENSE)（MIT，[@op7418](https://github.com/op7418)）。打包的 `design-templates/html-ppt/` 保留其原始 [LICENSE](design-templates/html-ppt/LICENSE)（MIT，[@lewislulu](https://github.com/lewislulu)）。
