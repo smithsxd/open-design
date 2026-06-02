@@ -225,6 +225,9 @@ jobs:
     if: ${{ inputs.enable_mac }}
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     timeout-minutes: 45
+    env:
+      MAC_TOOLS_PACK_CACHE_DIR: /Users/runner/.tmp/runner/od-beta/mac/tools-pack-cache
+      MAC_TOOLS_PACK_DIR: /Users/runner/.tmp/runner/od-beta/mac/tools-pack
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -248,8 +251,19 @@ jobs:
           OPEN_DESIGN_MAC_SIGNING_HELPER: /usr/local/libexec/open-design/install-signing-identity.zsh
           OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_CACHE_DIR: ${{ env.MAC_TOOLS_PACK_CACHE_DIR }}
+          TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
           TOOLS_PACK_NAMESPACE: release-beta
         run: bash .github/scripts/release/build-mac.sh
+
+      - name: Publish mac build summary
+        if: ${{ always() }}
+        working-directory: _release-build
+        continue-on-error: true
+        env:
+          BUILD_JSON_PATH: ${{ runner.temp }}/mac-tools-pack-build.json
+          SUMMARY_TITLE: macOS self-hosted tools-pack build
+        run: bash .github/scripts/release/report/mac.sh
 
       - name: Upload mac build diagnostics
         if: ${{ always() }}
@@ -272,7 +286,7 @@ jobs:
           OD_PACKAGED_E2E_RELEASE_CHANNEL: beta
           OD_PACKAGED_E2E_RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
           OD_PACKAGED_E2E_REPORT_DIR: ${{ runner.temp }}/release-report/mac
-          OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ runner.temp }}/tools-pack
+          OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
           OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
         run: |
           set -euo pipefail
@@ -293,6 +307,14 @@ jobs:
           path: ${{ runner.temp }}/release-report/mac
           if-no-files-found: warn
 
+      - name: Prune mac tools-pack cache
+        if: ${{ always() }}
+        working-directory: _release-build
+        continue-on-error: true
+        env:
+          CACHE_ROOT: ${{ env.MAC_TOOLS_PACK_CACHE_DIR }}
+        run: bash .github/scripts/release/cache/mac.sh
+
       - name: Prepare beta mac assets
         if: ${{ inputs.publish }}
         working-directory: _release-build
@@ -304,6 +326,7 @@ jobs:
           RELEASE_CHANNEL: beta
           RELEASE_NOTES: Open Design beta ${{ inputs.release_version || needs.metadata.outputs.beta_version }}${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
           TOOLS_PACK_NAMESPACE: release-beta
         run: bash .github/scripts/release/assets/mac.sh
 

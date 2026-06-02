@@ -12,6 +12,7 @@ const releaseBetaSelfHostedWorkflowPath = join(workspaceRoot, ".github", "workfl
 const releasePreviewWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-preview.yml");
 const releaseStableWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-stable.yml");
 const releaseStableScriptPath = join(workspaceRoot, "scripts", "release-stable.ts");
+const releaseMacAssetsScriptPath = join(workspaceRoot, ".github", "scripts", "release", "assets", "mac.sh");
 
 describe("packaged smoke workflow", () => {
   it("keeps packaged smoke outside the main CI gate", async () => {
@@ -107,7 +108,10 @@ describe("packaged smoke workflow", () => {
   });
 
   it("keeps the self-hosted beta lane metadata-driven with reusable platform publish scripts", async () => {
-    const workflow = await readFile(releaseBetaSelfHostedWorkflowPath, "utf8");
+    const [workflow, macAssetsScript] = await Promise.all([
+      readFile(releaseBetaSelfHostedWorkflowPath, "utf8"),
+      readFile(releaseMacAssetsScriptPath, "utf8"),
+    ]);
 
     expect(workflow).toContain("enable_mac:");
     expect(workflow).toContain("mac_sign_mode:");
@@ -136,9 +140,21 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("working-directory: _release-build");
     expect(workflow).toContain("working-directory: _release-build/e2e");
     expect(workflow).toContain("bash .github/scripts/release/build-mac.sh");
+    expect(workflow).toContain("MAC_TOOLS_PACK_CACHE_DIR: /Users/runner/.tmp/runner/od-beta/mac/tools-pack-cache");
+    expect(workflow).toContain("MAC_TOOLS_PACK_DIR: /Users/runner/.tmp/runner/od-beta/mac/tools-pack");
+    expect(workflow).toContain("TOOLS_PACK_CACHE_DIR: ${{ env.MAC_TOOLS_PACK_CACHE_DIR }}");
+    expect(workflow).toContain("TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}");
+    expect(workflow).toContain("name: Publish mac build summary");
+    expect(workflow).toContain("bash .github/scripts/release/report/mac.sh");
+    expect(workflow).toContain("OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}");
+    expect(workflow).toContain("name: Prune mac tools-pack cache");
+    expect(workflow).toContain("CACHE_ROOT: ${{ env.MAC_TOOLS_PACK_CACHE_DIR }}");
+    expect(workflow).toContain("bash .github/scripts/release/cache/mac.sh");
     expect(workflow).toContain("MAC_SIGN_MODE: ${{ inputs.mac_sign_mode }}");
     expect(workflow).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");
     expect(workflow).toContain("ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && needs.metadata.outputs.asset_version_suffix || '.unsigned' }}");
+    expect(macAssetsScript).toContain('tools_pack_dir="${TOOLS_PACK_DIR:-$RUNNER_TEMP/tools-pack}"');
+    expect(macAssetsScript).toContain('source_dmg="$tools_pack_dir/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/dmg/Open Design-$TOOLS_PACK_NAMESPACE.dmg"');
     expect(workflow).toContain("Publish beta mac candidate platform to Nexu S3");
     expect(workflow).toContain("RELEASE_PLATFORM: mac");
     expect(workflow).toContain("RELEASE_SIGNED: ${{ inputs.mac_sign_mode == 'on' && 'true' || 'false' }}");

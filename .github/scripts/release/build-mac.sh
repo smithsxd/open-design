@@ -41,6 +41,36 @@ ensure_pnpm() {
   fi
 }
 
+format_duration() {
+  local ms="$1"
+  if [ "$ms" -ge 60000 ]; then
+    node -e 'process.stdout.write(`${Math.round((Number(process.argv[1]) / 60000) * 10) / 10}m`)' "$ms"
+  else
+    node -e 'process.stdout.write(`${Math.round((Number(process.argv[1]) / 1000) * 10) / 10}s`)' "$ms"
+  fi
+}
+
+measure_step() {
+  local name="$1"
+  shift
+  echo "##[group]$name"
+  local started duration
+  started="$(node -e 'process.stdout.write(String(Date.now()))')"
+  if "$@"; then
+    duration="$(( $(node -e 'process.stdout.write(String(Date.now()))') - started ))"
+    timings_json="${timings_json:+$timings_json,}{\"step\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$name"),\"status\":\"success\",\"durationMs\":$duration}"
+    echo "[$name] success in $(format_duration "$duration")"
+  else
+    local status=$?
+    duration="$(( $(node -e 'process.stdout.write(String(Date.now()))') - started ))"
+    timings_json="${timings_json:+$timings_json,}{\"step\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$name"),\"status\":\"failed\",\"durationMs\":$duration}"
+    echo "[$name] failed in $(format_duration "$duration")"
+    echo "##[endgroup]"
+    return "$status"
+  fi
+  echo "##[endgroup]"
+}
+
 inspect_electron_framework_symlinks() {
   local electron_dist framework missing_links
   electron_dist="$(node -e 'const path = require("node:path"); const { createRequire } = require("node:module"); const requireFromDesktop = createRequire(path.join(process.cwd(), "apps/desktop/package.json")); const electron = requireFromDesktop.resolve("electron"); process.stdout.write(path.join(path.dirname(electron), "dist"));')"
@@ -192,6 +222,7 @@ required RELEASE_VERSION
 required RUNNER_TEMP
 
 tools_pack_dir="${TOOLS_PACK_DIR:-$RUNNER_TEMP/tools-pack}"
+cache_dir="${TOOLS_PACK_CACHE_DIR:-$RUNNER_TEMP/tools-pack-cache}"
 build_json_path="${BUILD_JSON_PATH:-$RUNNER_TEMP/mac-tools-pack-build.json}"
 build_log_path="${BUILD_LOG_PATH:-$RUNNER_TEMP/mac-tools-pack-build.log}"
 namespace="${TOOLS_PACK_NAMESPACE:-release-beta}"
@@ -220,25 +251,29 @@ require_command node
 ensure_pnpm
 echo "node=$(node --version)"
 echo "pnpm=$(pnpm --version)"
+echo "tools_pack_dir=$tools_pack_dir"
+echo "tools_pack_cache_dir=$cache_dir"
 
-pnpm install --frozen-lockfile
-inspect_electron_framework_symlinks
+timings_json=""
+measure_step "pnpm install" pnpm install --frozen-lockfile
+measure_step "electron framework symlink inspection" inspect_electron_framework_symlinks
 
 if [ "$sign_mode" = "on" ]; then
-  prepare_mac_signing
+  measure_step "prepare mac signing" prepare_mac_signing
   if [ -n "${OPEN_DESIGN_MAC_SIGNING_HELPER:-}" ]; then
-    install_mac_signing_keychain "$CSC_LINK"
+    measure_step "install mac signing keychain" install_mac_signing_keychain "$CSC_LINK"
   fi
-  select_mac_signing_identity
+  measure_step "select mac signing identity" select_mac_signing_identity
 fi
 
 rm -rf "$tools_pack_dir"
-mkdir -p "$(dirname "$build_json_path")" "$(dirname "$build_log_path")"
+mkdir -p "$cache_dir" "$(dirname "$build_json_path")" "$(dirname "$build_log_path")"
 : > "$build_log_path"
 
 build_args=(
   exec tools-pack mac build
   --dir "$tools_pack_dir"
+  --cache-dir "$cache_dir"
   --namespace "$namespace"
   --portable
   --app-version "$RELEASE_VERSION"
@@ -255,6 +290,15 @@ fi
 
 if build_output="$(pnpm "${build_args[@]}" 2> >(tee -a "$build_log_path" >&2))"; then
   printf '%s\n' "$build_output" | tee "$build_json_path"
+  BUILD_JSON_PATH="$build_json_path" TIMINGS_JSON="[$timings_json]" node --input-type=module <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+
+const path = process.env.BUILD_JSON_PATH;
+const build = JSON.parse(readFileSync(path, "utf8"));
+const wrapperTimings = JSON.parse(process.env.TIMINGS_JSON ?? "[]");
+build.releaseScriptTimings = wrapperTimings;
+writeFileSync(path, `${JSON.stringify(build, null, 2)}\n`, "utf8");
+NODE
 else
   build_status=$?
   printf '%s\n' "$build_output"
