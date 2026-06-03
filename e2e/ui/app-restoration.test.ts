@@ -143,13 +143,10 @@ test('[P0] workspace restores the last manually selected file tab after reload i
   await expect(restoredManualFileTab).toHaveAttribute('aria-selected', 'true');
   const restoredArtifactTab = page.getByRole('tab', { name: /workspace-artifact\.html/i });
   if ((await restoredArtifactTab.count()) === 0) {
-    await page.getByTestId('design-files-tab').click();
-    const artifactFileRow = page.locator('[data-testid^="design-file-row-"]', {
-      hasText: 'workspace-artifact.html',
-    });
-    await expect(artifactFileRow).toBeVisible();
-    await artifactFileRow.getByRole('button').first().click();
-    await page.getByTestId('design-file-preview').getByRole('button', { name: 'Open' }).click();
+    const turnCard = page.locator('.msg.assistant').filter({ hasText: 'workspace-artifact.html' }).first();
+    const openButton = turnCard.getByRole('button', { name: 'Open' });
+    await expect(openButton).toBeVisible();
+    await openButton.click();
 
     await expect(restoredArtifactTab).toBeVisible();
     await expect(restoredArtifactTab).toHaveAttribute('aria-selected', 'true');
