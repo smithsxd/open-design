@@ -91,6 +91,99 @@ interface SlashCommand {
   icon: 'sparkles' | 'eye' | 'sliders';
 }
 
+type DesignToolboxActionId =
+  | 'auto-match'
+  | 'motion'
+  | 'motion-polish'
+  | 'anti-ai-polish'
+  | 'visual-polish'
+  | 'image-gen'
+  | 'video-gen';
+
+interface DesignToolboxAction {
+  id: DesignToolboxActionId;
+  title: string;
+  badge: string;
+  description: string;
+  icon: IconName;
+  preferredSkillIds: string[];
+  categoryHints: string[];
+  searchTerms: string[];
+}
+
+const DESIGN_TOOLBOX_ACTIONS: DesignToolboxAction[] = [
+  {
+    id: 'auto-match',
+    title: '智能匹配下一步',
+    badge: '匹配',
+    description: '先判断目标，再从 skills / MCP / plugins 里选一组最适合的后续动作。',
+    icon: 'sparkles',
+    preferredSkillIds: ['creative-director', 'frontend-design', 'design-taste-frontend'],
+    categoryHints: ['creative-direction', 'web-artifacts'],
+    searchTerms: ['match', 'recommend', 'next step', 'workflow', 'skills', 'mcp', 'plugins', '匹配', '下一步', '推荐'],
+  },
+  {
+    id: 'motion',
+    title: '加动画 / 动效',
+    badge: '动画',
+    description: '给当前 HTML 或页面元素加入场、滚动、状态切换和微交互。',
+    icon: 'play',
+    preferredSkillIds: ['emilkowalski-motion', 'gsap-react', 'gsap-scrolltrigger', 'gsap-timeline', 'gsap-core'],
+    categoryHints: ['animation-motion'],
+    searchTerms: ['animation', 'motion', 'gsap', 'micro interaction', 'scrolltrigger', '动效', '动画', '微交互'],
+  },
+  {
+    id: 'motion-polish',
+    title: '动效润色',
+    badge: '节奏',
+    description: '检查现有动效的节奏、缓动、性能和 reduced-motion 兜底。',
+    icon: 'sliders',
+    preferredSkillIds: ['gsap-performance', 'emilkowalski-motion', 'gsap-timeline', 'gsap-core'],
+    categoryHints: ['animation-motion'],
+    searchTerms: ['motion polish', 'easing', 'performance', 'reduced motion', 'timeline', '动效润色', '缓动', '性能'],
+  },
+  {
+    id: 'anti-ai-polish',
+    title: '反 AI 味美化',
+    badge: '去味',
+    description: '移除模板感、AI 紫蓝渐变、廉价卡片堆叠和空泛 copy。',
+    icon: 'paint-bucket',
+    preferredSkillIds: ['design-taste-frontend', 'gpt-taste', 'frontend-design', 'impeccable-design-polish'],
+    categoryHints: ['creative-direction', 'web-artifacts'],
+    searchTerms: ['anti ai', 'anti slop', 'taste', 'generic', 'beautify', '反 ai', '去 ai 味', '美化', '润色'],
+  },
+  {
+    id: 'visual-polish',
+    title: '设计润色 / 可交付',
+    badge: '润色',
+    description: '审一次视觉层级、排版、间距、响应式、可访问性和交付状态。',
+    icon: 'palette',
+    preferredSkillIds: ['impeccable-design-polish', 'frontend-design', 'creative-director', 'design-taste-frontend'],
+    categoryHints: ['creative-direction', 'web-artifacts'],
+    searchTerms: ['polish', 'critique', 'audit', 'harden', 'responsive', 'accessibility', '润色', '审稿', '交付'],
+  },
+  {
+    id: 'image-gen',
+    title: '生图 / 视觉参考',
+    badge: '生图',
+    description: '为当前页面生成分区视觉参考、素材、图标、社媒图或 moodboard。',
+    icon: 'image',
+    preferredSkillIds: ['imagegen-frontend-web', 'fal-generate', 'imagen', 'venice-image-generate', 'image-enhancer'],
+    categoryHints: ['image-generation'],
+    searchTerms: ['image', 'generate image', 'visual reference', 'moodboard', 'section image', '生图', '配图', '视觉参考'],
+  },
+  {
+    id: 'video-gen',
+    title: '生视频 / 动画脚本',
+    badge: '视频',
+    description: '把设计转成短视频、Remotion / Hyperframes 分镜或可生成视频的 prompt。',
+    icon: 'play',
+    preferredSkillIds: ['video-hyperframes', 'sora', 'fal-video-edit', 'venice-video', 'replicate'],
+    categoryHints: ['video-generation'],
+    searchTerms: ['video', 'sora', 'remotion', 'hyperframes', 'storyboard', '生视频', '视频', '分镜'],
+  },
+];
+
 interface Props {
   projectId: string | null;
   projectFiles: ProjectFile[];
@@ -323,6 +416,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // row of three standalone buttons (which overflowed in narrow chats).
     const [toolsOpen, setToolsOpen] = useState(false);
     const [toolsTab, setToolsTab] = useState<ToolsTab>('plugins');
+    const [designToolboxOpen, setDesignToolboxOpen] = useState(false);
     // Defer the (large) plugin / MCP / connector fetches until the composer is
     // actually used — first focus, the tools popover opening, an @/slash
     // trigger, or a pre-seeded draft. An untouched empty composer (e.g. a home
@@ -338,6 +432,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const editorRef = useRef<LexicalComposerInputHandle | null>(null);
     const toolsMenuRef = useRef<HTMLDivElement | null>(null);
     const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
+    const designToolboxMenuRef = useRef<HTMLDivElement | null>(null);
+    const designToolboxTriggerRef = useRef<HTMLButtonElement | null>(null);
     const petEnabled = Boolean(onAdoptPet && onTogglePet);
     const linkedDirs = projectMetadata?.linkedDirs ?? [];
     const visibleWorkspaceContext =
@@ -392,14 +488,33 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       };
     }, [toolsOpen]);
 
+    useEffect(() => {
+      if (!designToolboxOpen) return;
+      function onPointer(e: MouseEvent) {
+        const target = e.target as Node;
+        if (designToolboxMenuRef.current?.contains(target)) return;
+        if (designToolboxTriggerRef.current?.contains(target)) return;
+        setDesignToolboxOpen(false);
+      }
+      function onKey(e: KeyboardEvent) {
+        if (e.key === 'Escape') setDesignToolboxOpen(false);
+      }
+      document.addEventListener('mousedown', onPointer);
+      document.addEventListener('keydown', onKey);
+      return () => {
+        document.removeEventListener('mousedown', onPointer);
+        document.removeEventListener('keydown', onKey);
+      };
+    }, [designToolboxOpen]);
+
     // Latch `composerEngaged` true on the first real interaction so the
     // deferred fetches below run exactly once, when they are actually needed.
     useEffect(() => {
       if (composerEngaged) return;
-      if (draft.trim().length > 0 || toolsOpen || mention || slash) {
+      if (draft.trim().length > 0 || toolsOpen || designToolboxOpen || mention || slash) {
         setComposerEngaged(true);
       }
-    }, [composerEngaged, draft, toolsOpen, mention, slash]);
+    }, [composerEngaged, designToolboxOpen, draft, toolsOpen, mention, slash]);
 
     // Lazy-fetch the user's external MCP servers list (once engaged) so the
     // `/mcp …` slash palette and the composer's MCP button popover have
@@ -820,6 +935,61 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         entity: { id: skill.id, kind: 'skill', label: skill.name },
       });
       setMention(null);
+    }
+
+    function stageSkillForCurrentTurn(skill: SkillSummary) {
+      setStagedSkills((prev) =>
+        prev.some((s) => s.id === skill.id) ? prev : [...prev, skill],
+      );
+    }
+
+    function applyDesignToolboxPrompt(
+      prompt: string,
+      skill: SkillSummary | null,
+    ) {
+      const nextPrompt = skill
+        ? `${inlineMentionToken(skill.name)}\n${prompt}`
+        : prompt;
+      if (skill) stageSkillForCurrentTurn(skill);
+      replaceEditorDraft(nextPrompt);
+      setDesignToolboxOpen(false);
+      editorRef.current?.focus();
+    }
+
+    function applyDesignToolboxAction(action: DesignToolboxAction) {
+      const skill = findDesignToolboxSkill(action, skills);
+      applyDesignToolboxPrompt(
+        designToolboxActionPrompt({
+          action,
+          skill,
+          workspaceItem: visibleWorkspaceContext,
+          activeDraft: draft,
+          skills,
+        }),
+        skill,
+      );
+    }
+
+    function applyDesignToolboxSkill(skill: SkillSummary) {
+      applyDesignToolboxPrompt(
+        designToolboxSkillPrompt({
+          skill,
+          workspaceItem: visibleWorkspaceContext,
+          activeDraft: draft,
+        }),
+        skill,
+      );
+    }
+
+    function applyLuckyDesignToolboxAction() {
+      applyDesignToolboxAction(
+        pickLuckyDesignToolboxAction({
+          actions: DESIGN_TOOLBOX_ACTIONS,
+          draft,
+          projectFiles,
+          workspaceItem: visibleWorkspaceContext,
+        }),
+      );
     }
 
     function removeStagedSkill(id: string) {
@@ -1767,6 +1937,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   setToolsOpen((v) => {
                     const next = !v;
                     if (next) {
+                      setDesignToolboxOpen(false);
                       // P0 ui_click resources_popover_trigger — only emit on
                       // the open transition so accidental double-clicks
                       // don't pair an open + close into a "double tap" the
@@ -1927,6 +2098,43 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                       />
                     ) : null}
                   </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="composer-design-toolbox-wrap">
+              <button
+                ref={designToolboxTriggerRef}
+                type="button"
+                className={`icon-btn composer-toolbox-trigger od-tooltip${designToolboxOpen ? ' active' : ''}`}
+                onClick={() => {
+                  setDesignToolboxOpen((v) => {
+                    const next = !v;
+                    if (next) setToolsOpen(false);
+                    return next;
+                  });
+                }}
+                title="设计百宝箱 / Feel lucky"
+                data-tooltip="设计百宝箱 / Feel lucky"
+                aria-haspopup="menu"
+                aria-expanded={designToolboxOpen}
+                aria-label="打开设计百宝箱"
+              >
+                <Icon name="lightbulb" size={15} />
+              </button>
+              {designToolboxOpen ? (
+                <div
+                  ref={designToolboxMenuRef}
+                  className="composer-design-toolbox-menu"
+                  role="menu"
+                >
+                  <DesignToolboxPanel
+                    actions={DESIGN_TOOLBOX_ACTIONS}
+                    skills={skills}
+                    activeSkillIds={stagedSkills.map((skill) => skill.id)}
+                    onLucky={applyLuckyDesignToolboxAction}
+                    onPickAction={applyDesignToolboxAction}
+                    onPickSkill={applyDesignToolboxSkill}
+                  />
                 </div>
               ) : null}
             </div>
@@ -2573,6 +2781,7 @@ function ToolsPluginsPanel({
               <button
                 type="button"
                 className="composer-tools-row-main"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={async () => {
                   setPendingId(p.id);
                   try {
@@ -2603,6 +2812,7 @@ function ToolsPluginsPanel({
               <button
                 type="button"
                 className="composer-tools-row-side"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onShowDetails(p)}
                 title={`View details for ${p.title}`}
                 aria-label={`View details for ${p.title}`}
@@ -2664,6 +2874,7 @@ function ToolsMcpPanel({
               type="button"
               role="menuitem"
               className="composer-tools-row"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onInsert(s.id)}
               title={`Insert a hint that nudges the model to use ${s.label || s.id}`}
             >
@@ -2685,6 +2896,7 @@ function ToolsMcpPanel({
               type="button"
               role="menuitem"
               className="composer-tools-row"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={onManage}
               title={`Add ${tpl.label} from Settings`}
             >
@@ -2704,11 +2916,150 @@ function ToolsMcpPanel({
         type="button"
         role="menuitem"
         className="composer-tools-row composer-tools-row-action"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={onManage}
       >
         <Icon name="settings" size={12} />
         <span>Manage MCP servers…</span>
       </button>
+    </>
+  );
+}
+
+function DesignToolboxPanel({
+  actions,
+  skills,
+  activeSkillIds,
+  onLucky,
+  onPickAction,
+  onPickSkill,
+}: {
+  actions: DesignToolboxAction[];
+  skills: SkillSummary[];
+  activeSkillIds: string[];
+  onLucky: () => void;
+  onPickAction: (action: DesignToolboxAction) => void;
+  onPickSkill: (skill: SkillSummary) => void;
+}) {
+  const { locale } = useI18n();
+  const [query, setQuery] = useState('');
+  const activeSkillSet = useMemo(() => new Set(activeSkillIds), [activeSkillIds]);
+  const visibleActions = useMemo(
+    () =>
+      actions.filter((action) =>
+        designToolboxActionMatchesQuery(action, query, findDesignToolboxSkill(action, skills)),
+      ),
+    [actions, query, skills],
+  );
+  const visibleSkills = useMemo(
+    () => {
+      const source = query
+        ? skills.filter((skill) => isDesignToolboxSkill(skill))
+        : designToolboxDefaultSkills(actions, skills);
+      return source
+        .filter((skill) => (query ? skillMatchesQuery(skill, query) : true))
+        .slice(0, query ? 10 : 6);
+    },
+    [actions, query, skills],
+  );
+
+  return (
+    <>
+      <div className="composer-design-toolbox-head">
+        <div className="composer-design-toolbox-title">
+          <Icon name="lightbulb" size={14} />
+          <span>设计百宝箱</span>
+        </div>
+        <button
+          type="button"
+          className="composer-design-toolbox-lucky"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onLucky}
+        >
+          Feel lucky
+        </button>
+      </div>
+      <div className="composer-tools-filter">
+        <input
+          className="composer-tools-search"
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+          placeholder="Search skills / follow-ups..."
+          aria-label="Search design toolbox skills"
+        />
+      </div>
+      {visibleActions.length > 0 ? (
+        <div className="composer-tools-list">
+          <div className="composer-tools-section-label">Follow-up</div>
+          {visibleActions.map((action) => {
+            const skill = findDesignToolboxSkill(action, skills);
+            return (
+              <button
+                key={action.id}
+                type="button"
+                role="menuitem"
+                className="composer-tools-row composer-design-toolbox-row"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onPickAction(action)}
+                title={skill ? localizeSkillDescription(locale, skill) : action.description}
+              >
+                <span className="composer-design-toolbox-icon" aria-hidden>
+                  <Icon name={action.icon} size={13} />
+                </span>
+                <span className="composer-tools-row-body">
+                  <strong>{action.title}</strong>
+                  <span className="composer-tools-row-meta">
+                    {action.description}
+                  </span>
+                  {skill ? (
+                    <span className="composer-design-toolbox-skill">
+                      @{localizeSkillName(locale, skill)}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="composer-design-toolbox-badge">{action.badge}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {visibleSkills.length > 0 ? (
+        <div className="composer-tools-list">
+          <div className="composer-tools-section-label">Skills</div>
+          {visibleSkills.map((skill) => {
+            const active = activeSkillSet.has(skill.id);
+            return (
+              <button
+                key={skill.id}
+                type="button"
+                role="menuitem"
+                className={`composer-tools-row composer-design-toolbox-row${active ? ' active' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onPickSkill(skill)}
+                title={localizeSkillDescription(locale, skill)}
+              >
+                <span className="composer-design-toolbox-icon" aria-hidden>
+                  <Icon name={designToolboxSkillIcon(skill)} size={13} />
+                </span>
+                <span className="composer-tools-row-body">
+                  <strong>{localizeSkillName(locale, skill)}</strong>
+                  <span className="composer-tools-row-meta">
+                    {localizeSkillDescription(locale, skill)}
+                  </span>
+                </span>
+                <span className="composer-design-toolbox-badge">
+                  {active ? '已选' : designToolboxSkillBadge(skill)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {visibleActions.length === 0 && visibleSkills.length === 0 ? (
+        <div className="composer-tools-empty">
+          No design follow-up skills found for "{query}".
+        </div>
+      ) : null}
     </>
   );
 }
@@ -2754,6 +3105,7 @@ function ToolsSkillsPanel({
                 type="button"
                 role="menuitem"
                 className={`composer-tools-row${active ? ' active' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={async () => {
                   setPendingId(skill.id);
                   try {
@@ -2815,6 +3167,263 @@ function skillMatchesQuery(skill: SkillSummary, query: string): boolean {
     .join(' ')
     .toLowerCase()
     .includes(q);
+}
+
+function findDesignToolboxSkill(
+  action: DesignToolboxAction,
+  skills: SkillSummary[],
+): SkillSummary | null {
+  for (const id of action.preferredSkillIds) {
+    const exact = skills.find((skill) => skill.id === id || skill.name === id);
+    if (exact) return exact;
+  }
+  const categoryHintSet = new Set(action.categoryHints);
+  const categoryMatch = skills.find((skill) =>
+    skill.category ? categoryHintSet.has(skill.category) : false,
+  );
+  if (categoryMatch) return categoryMatch;
+  return (
+    skills.find((skill) =>
+      action.searchTerms.some((term) => skillMatchesQuery(skill, term)),
+    ) ?? null
+  );
+}
+
+function designToolboxActionMatchesQuery(
+  action: DesignToolboxAction,
+  query: string,
+  skill: SkillSummary | null,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [
+    action.title,
+    action.badge,
+    action.description,
+    ...action.searchTerms,
+    skill?.id ?? '',
+    skill?.name ?? '',
+    skill?.description ?? '',
+    skill?.category ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(q);
+}
+
+function isDesignToolboxSkill(skill: SkillSummary): boolean {
+  const category = skill.category ?? '';
+  if (
+    [
+      'animation-motion',
+      'creative-direction',
+      'image-generation',
+      'video-generation',
+      'web-artifacts',
+    ].includes(category)
+  ) {
+    return true;
+  }
+  return [
+    'animation',
+    'motion',
+    'gsap',
+    'polish',
+    'critique',
+    'taste',
+    'anti slop',
+    'anti ai',
+    'image',
+    'video',
+    'frontend',
+    'beautify',
+  ].some((term) => skillMatchesQuery(skill, term));
+}
+
+function designToolboxDefaultSkills(
+  actions: DesignToolboxAction[],
+  skills: SkillSummary[],
+): SkillSummary[] {
+  const out: SkillSummary[] = [];
+  const seen = new Set<string>();
+  function add(skill: SkillSummary | null | undefined) {
+    if (!skill || seen.has(skill.id)) return;
+    seen.add(skill.id);
+    out.push(skill);
+  }
+  for (const action of actions) {
+    add(findDesignToolboxSkill(action, skills));
+  }
+  for (const action of actions) {
+    for (const id of action.preferredSkillIds) {
+      add(skills.find((skill) => skill.id === id || skill.name === id));
+    }
+  }
+  return out;
+}
+
+function designToolboxSkillBadge(skill: SkillSummary): string {
+  if (skill.mode === 'video' || skill.category === 'video-generation') return '视频';
+  if (skill.mode === 'image' || skill.category === 'image-generation') return '生图';
+  if (skill.category === 'animation-motion') return '动画';
+  if (skill.category === 'creative-direction') return '润色';
+  return skill.mode;
+}
+
+function designToolboxSkillIcon(skill: SkillSummary): IconName {
+  if (skill.mode === 'video' || skill.category === 'video-generation') return 'play';
+  if (skill.mode === 'image' || skill.category === 'image-generation') return 'image';
+  if (skill.category === 'animation-motion') return 'sliders';
+  if (skill.category === 'creative-direction') return 'sparkles';
+  return 'file';
+}
+
+function pickLuckyDesignToolboxAction({
+  actions,
+  draft,
+  projectFiles,
+  workspaceItem,
+}: {
+  actions: DesignToolboxAction[];
+  draft: string;
+  projectFiles: ProjectFile[];
+  workspaceItem: WorkspaceContextItem | null;
+}): DesignToolboxAction {
+  const haystack = [
+    draft,
+    workspaceItem?.label ?? '',
+    workspaceItem?.path ?? '',
+    workspaceItem?.title ?? '',
+    ...projectFiles.slice(0, 20).map((file) => file.path ?? file.name),
+  ]
+    .join(' ')
+    .toLowerCase();
+  const preferredId = keywordPick(
+    haystack,
+    [
+      ['video-gen', ['video', 'sora', 'mp4', 'remotion', 'hyperframes', '视频', '生视频']],
+      ['image-gen', ['image', 'png', 'jpg', 'illustration', 'moodboard', '生图', '图片']],
+      ['motion', ['animation', 'motion', 'gsap', 'scroll', 'animate', '动效', '动画']],
+      ['anti-ai-polish', ['anti', 'slop', 'generic', 'ai味', 'ai 味', '反 ai', '美化']],
+      ['visual-polish', ['polish', 'critique', 'audit', 'responsive', '润色', '检查']],
+    ],
+    haystack.includes('.html') || haystack.includes('browser') ? 'visual-polish' : 'auto-match',
+  );
+  return actions.find((action) => action.id === preferredId) ?? actions[0]!;
+}
+
+function keywordPick(
+  haystack: string,
+  choices: Array<[DesignToolboxActionId, string[]]>,
+  fallback: DesignToolboxActionId,
+): DesignToolboxActionId {
+  for (const [id, keywords] of choices) {
+    if (keywords.some((keyword) => haystack.includes(keyword))) return id;
+  }
+  return fallback;
+}
+
+function designToolboxContextLine(workspaceItem: WorkspaceContextItem | null): string {
+  if (!workspaceItem) {
+    return '当前目标：当前打开的 HTML / 设计文件 / 网页元素。';
+  }
+  const label = workspaceItem.label || workspaceItem.path || workspaceItem.title || workspaceItem.id;
+  return `当前目标：${workspaceContextKindLabel(workspaceItem.kind)} · ${label}。`;
+}
+
+function designToolboxDraftLine(activeDraft: string): string {
+  const trimmed = activeDraft.trim();
+  if (!trimmed) return '';
+  return `保留我输入框里已有的意图：${trimmed}`;
+}
+
+function designToolboxActionPrompt({
+  action,
+  skill,
+  workspaceItem,
+  activeDraft,
+  skills,
+}: {
+  action: DesignToolboxAction;
+  skill: SkillSummary | null;
+  workspaceItem: WorkspaceContextItem | null;
+  activeDraft: string;
+  skills: SkillSummary[];
+}): string {
+  const skillLine = skill
+    ? `已选 skill：${skill.name}。请把它作为本轮主要工作流。`
+    : '如果没有匹配到具体 skill，请先从当前可用 skills / MCP / plugins 中选择最合适的组合。';
+  const availableLine = designToolboxAvailableSkillsLine(skills);
+  const draftLine = designToolboxDraftLine(activeDraft);
+  const base = [
+    designToolboxContextLine(workspaceItem),
+    skillLine,
+    availableLine,
+    draftLine,
+  ].filter(Boolean);
+
+  switch (action.id) {
+    case 'auto-match':
+      return [
+        ...base,
+        '请先判断这个设计现在最值得做的下一步目标，然后匹配 2-3 个 skills / MCP / plugins 方案；如果有明显最佳方案，直接执行它并说明为什么。',
+      ].join('\n');
+    case 'motion':
+      return [
+        ...base,
+        '请基于当前 HTML / 页面元素加入高质量动效：入场、滚动、状态切换或微交互任选最有效的 1-2 处。保持克制，优先 transform / opacity，并加 prefers-reduced-motion 兜底。',
+      ].join('\n');
+    case 'motion-polish':
+      return [
+        ...base,
+        '请审查并润色现有动效的节奏、缓动、性能和可访问性。修掉突兀、廉价或影响阅读的动画；必要时改成更细腻的时间线。',
+      ].join('\n');
+    case 'anti-ai-polish':
+      return [
+        ...base,
+        '请做一次反 AI 味美化：移除模板化布局、廉价渐变/光晕、无意义卡片堆叠和空泛文案；保持信息不丢失，直接改到更像真实设计师交付。',
+      ].join('\n');
+    case 'visual-polish':
+      return [
+        ...base,
+        '请把这个设计打磨到可交付：检查视觉层级、排版、间距、响应式、按钮状态、空/加载/错误状态和可访问性，并直接完成最重要的修正。',
+      ].join('\n');
+    case 'image-gen':
+      return [
+        ...base,
+        '请为当前设计生成下一步视觉资产方案：可以是分区参考图、hero 素材、插画、icon、社媒图或 moodboard。先判断最缺哪类图，再给可执行的生成 prompt / 文件计划。',
+      ].join('\n');
+    case 'video-gen':
+      return [
+        ...base,
+        '请把当前设计转成视频方向：生成短视频分镜、Hyperframes / Remotion 帧结构或 Sora/fal 可用 prompt。优先让现有 HTML / 页面内容自然变成镜头。',
+      ].join('\n');
+  }
+}
+
+function designToolboxSkillPrompt({
+  skill,
+  workspaceItem,
+  activeDraft,
+}: {
+  skill: SkillSummary;
+  workspaceItem: WorkspaceContextItem | null;
+  activeDraft: string;
+}): string {
+  return [
+    designToolboxContextLine(workspaceItem),
+    `使用 ${skill.name} 处理当前设计。`,
+    designToolboxDraftLine(activeDraft),
+    '请先判断最合适的加工目标，再直接完成一轮具体改动；如果它依赖外部素材或 API，请给出可运行的替代方案或明确需要我补充什么。',
+  ].filter(Boolean).join('\n');
+}
+
+function designToolboxAvailableSkillsLine(skills: SkillSummary[]): string {
+  const names = designToolboxDefaultSkills(DESIGN_TOOLBOX_ACTIONS, skills)
+    .slice(0, 10)
+    .map((skill) => skill.name);
+  if (names.length === 0) return '';
+  return `可参考的设计后续 skills：${names.join(', ')}。`;
 }
 
 function skillMentionRank(skill: SkillSummary, query: string): number {

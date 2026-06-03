@@ -41,6 +41,7 @@ export type IconName =
   | 'kanban'
   | 'layers-filled'
   | 'languages'
+  | 'lightbulb'
   | 'link'
   | 'integrations-filled'
   | 'mic'
@@ -414,6 +415,15 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: Props) {
           <path d="M7 2h1" />
           <path d="m22 22-5-10-5 10" />
           <path d="M14 18h6" />
+        </svg>
+      );
+    case 'lightbulb':
+      return (
+        <svg {...common}>
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path d="M12 2a7 7 0 0 0-4.1 12.7c.8.6 1.1 1.5 1.1 2.3h6c0-.8.3-1.7 1.1-2.3A7 7 0 0 0 12 2Z" />
+          <path d="M10 10a2 2 0 0 1 4 0" />
         </svg>
       );
     case 'link':

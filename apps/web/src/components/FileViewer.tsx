@@ -2666,6 +2666,7 @@ function reorderPreviewCommentIds(
 
 function CommentSideDock({
   comments,
+  projectId,
   selectedIds,
   activeCommentId,
   collapsed,
@@ -2684,6 +2685,7 @@ function CommentSideDock({
   composer,
 }: {
   comments: PreviewComment[];
+  projectId?: string;
   selectedIds: Set<string>;
   activeCommentId: string | null;
   collapsed: boolean;
@@ -2708,6 +2710,7 @@ function CommentSideDock({
     >
       <CommentSidePanel
         comments={comments}
+        projectId={projectId}
         selectedIds={selectedIds}
         activeCommentId={activeCommentId}
         collapsed={collapsed}
@@ -7288,6 +7291,15 @@ function HtmlViewer({
     () => (projectSocialShareRequest ? buildSocialSharePayload(projectSocialShareRequest) : null),
     [projectSocialShareRequest],
   );
+  // Gate the async payload load on a stable *content* key, not the memo's
+  // object identity. The request object can take a fresh identity on renders
+  // where its inputs are value-equal (e.g. while deployment polling re-sets
+  // state with a new map reference), and keying the effect on that identity
+  // made `setProjectSocialShare` re-fire every render — an infinite render
+  // loop once a deployment URL is available (#regression: ready-deploy share).
+  const projectSocialShareKey = projectSocialShareRequest
+    ? JSON.stringify(projectSocialShareRequest)
+    : '';
   useEffect(() => {
     setProjectSocialShare(null);
     if (!projectSocialShareRequest) return;
@@ -7302,7 +7314,8 @@ function HtmlViewer({
     return () => {
       cancelled = true;
     };
-  }, [projectSocialShareRequest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectSocialShareKey]);
   const activeProjectSocialShare = projectSocialShare ?? projectSocialShareFallback;
   const socialShareMenuLabel =
     activeProjectSocialShare
@@ -7535,6 +7548,7 @@ function HtmlViewer({
   const commentSidePanel = commentPanelOpen ? (
     <CommentSideDock
       comments={visibleSideComments}
+      projectId={projectId}
       selectedIds={selectedSideCommentIds}
       activeCommentId={activeSideCommentId}
       collapsed={commentPortalHost ? false : commentSidePanelCollapsed}
@@ -7968,27 +7982,6 @@ function HtmlViewer({
                       )}
                       <div className="share-menu-divider" />
                       <div className="share-menu-section-label" role="presentation">
-                        {t('socialShare.projectSection')}
-                      </div>
-                      <button
-                        type="button"
-                        className="share-menu-item"
-                        role="menuitem"
-                        onClick={() => {
-                          setDeployMenuOpen(false);
-                          fireShareExport('vercel', () => openSocialShareFlow());
-                        }}
-                      >
-                        <span className="share-menu-icon">
-                          <RemixIcon
-                            name={activeProjectSocialShare ? 'share-forward-line' : 'upload-cloud-line'}
-                            size={15}
-                          />
-                        </span>
-                        <span>{socialShareMenuLabel}</span>
-                      </button>
-                      <div className="share-menu-divider" />
-                      <div className="share-menu-section-label" role="presentation">
                         {t('fileViewer.shareMenuPublishOnline')}
                       </div>
                       {DEPLOY_PROVIDER_OPTIONS.map((option) => (
@@ -8013,6 +8006,27 @@ function HtmlViewer({
                           <span>{deployActionLabelFor(option.id)}</span>
                         </button>
                       ))}
+                      <div className="share-menu-divider" />
+                      <div className="share-menu-section-label" role="presentation">
+                        {t('socialShare.projectSection')}
+                      </div>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setDeployMenuOpen(false);
+                          fireShareExport('vercel', () => openSocialShareFlow());
+                        }}
+                      >
+                        <span className="share-menu-icon">
+                          <RemixIcon
+                            name={activeProjectSocialShare ? 'share-forward-line' : 'upload-cloud-line'}
+                            size={15}
+                          />
+                        </span>
+                        <span>{socialShareMenuLabel}</span>
+                      </button>
                     </div>
                   ) : null}
                 </div>

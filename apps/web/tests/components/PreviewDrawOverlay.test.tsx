@@ -77,6 +77,29 @@ function installImageCompositeMocks() {
 }
 
 describe('PreviewDrawOverlay', () => {
+  it('keeps the draw toolbar responsive inside narrow preview surfaces', () => {
+    const { container } = render(
+      <PreviewDrawOverlay active>
+        <div style={{ width: 320, height: 200 }} />
+      </PreviewDrawOverlay>,
+    );
+
+    const canvas = container.querySelector<HTMLCanvasElement>('canvas');
+    const toolbar = container.querySelector<HTMLElement>('.preview-draw-toolbar');
+    const input = container.querySelector<HTMLInputElement>('.preview-draw-note-input');
+
+    expect(canvas?.style.zIndex).toBe('80');
+    expect(toolbar?.style.zIndex).toBe('91');
+    expect(toolbar?.style.flexWrap).toBe('wrap');
+    expect(toolbar?.style.left).toBe('calc(50% - 52px)');
+    expect(toolbar?.style.maxWidth).toContain('100% - 144px');
+    expect(input?.style.flexGrow).toBe('1');
+    expect(input?.style.flexShrink).toBe('1');
+    expect(input?.style.flexBasis).toBe('280px');
+    expect(input?.style.minWidth).toBe('0px');
+    expect(input?.style.maxWidth).toBe('100%');
+  });
+
   it('queues a note when Enter submits from the draw input', async () => {
     const annotation = vi.fn();
     window.addEventListener('opendesign:annotation', annotation);
