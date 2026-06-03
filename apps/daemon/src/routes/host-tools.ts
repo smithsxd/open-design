@@ -23,7 +23,7 @@ import type {
   HostEditorsResponse,
   OpenProjectInEditorResponse,
 } from '@open-design/contracts';
-import type { RouteDeps } from './server-context.js';
+import type { RouteDeps } from '../server-context.js';
 
 export interface RegisterHostToolsRoutesDeps
   extends RouteDeps<'db' | 'http' | 'paths' | 'projectStore' | 'projectFiles'> {}

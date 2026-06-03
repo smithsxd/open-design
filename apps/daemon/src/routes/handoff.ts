@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { RouteDeps } from './server-context.js';
+import type { RouteDeps } from '../server-context.js';
 
 export interface RegisterHandoffRoutesDeps
   extends RouteDeps<

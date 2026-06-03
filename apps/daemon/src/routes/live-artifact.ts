@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { RouteDeps } from './server-context.js';
+import type { RouteDeps } from '../server-context.js';
 
 export interface RegisterLiveArtifactRoutesDeps extends RouteDeps<'db' | 'http' | 'paths' | 'auth' | 'liveArtifacts' | 'projectStore'> {}
 

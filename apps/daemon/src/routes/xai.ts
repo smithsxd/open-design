@@ -26,22 +26,22 @@
 
 import type { Express } from 'express';
 
-import { proxyDispatcherRequestInit } from './connectionTest.js';
-import { mediaConfigDir, resolveProviderConfig } from './media-config.js';
-import { PendingAuthCache } from './mcp-oauth.js';
-import { beginXAIAuth, completeXAIAuth } from './xai-oauth.js';
+import { proxyDispatcherRequestInit } from '../connectionTest.js';
+import { mediaConfigDir, resolveProviderConfig } from '../media-config.js';
+import { PendingAuthCache } from '../mcp-oauth.js';
+import { beginXAIAuth, completeXAIAuth } from '../xai-oauth.js';
 import {
   startCallbackListener,
   type CallbackListener,
   type CallbackOutcome,
-} from './xai-oauth-server.js';
+} from '../xai-oauth-server.js';
 import {
   clearXAIToken,
   getXAIToken,
   setXAIToken,
   type StoredXAIToken,
-} from './xai-tokens.js';
-import type { RouteDeps } from './server-context.js';
+} from '../xai-tokens.js';
+import type { RouteDeps } from '../server-context.js';
 
 export interface RegisterXaiRoutesDeps extends RouteDeps<'http' | 'paths'> {}
 

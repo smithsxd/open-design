@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   getAnyAutomationTemplate,
   listAllAutomationTemplates,
-} from './automation-templates.js';
+} from '../automation-templates.js';
 import {
   deleteRoutine as dbDeleteRoutine,
   getLatestRoutineRun,
@@ -14,14 +14,14 @@ import {
   listRoutineRuns,
   listRoutines,
   updateRoutine,
-} from './db.js';
-import { ingestAutomationSource } from './automation-ingestions.js';
+} from '../db.js';
+import { ingestAutomationSource } from '../automation-ingestions.js';
 import {
   validateSchedule as validateRoutineSchedule,
   validateTarget as validateRoutineTarget,
   type RoutineService,
-} from './routines.js';
-import type { PathDeps, RouteDeps } from './server-context.js';
+} from '../routines.js';
+import type { PathDeps, RouteDeps } from '../server-context.js';
 
 export interface RegisterRoutineRoutesDeps extends RouteDeps<'db' | 'routines'> {
   paths: Pick<PathDeps, 'RUNTIME_DATA_DIR'>;

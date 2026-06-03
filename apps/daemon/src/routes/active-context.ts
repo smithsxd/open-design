@@ -1,8 +1,8 @@
 import type { Express } from 'express';
 import { createApiError } from '@open-design/contracts';
-import { ACTIVE_CONTEXT_TTL_MS } from './constants.js';
-import type { RouteDeps } from './server-context.js';
-import { defineJsonRoute, err, mountJsonRoute, ok, type Result } from './http/index.js';
+import { ACTIVE_CONTEXT_TTL_MS } from '../constants.js';
+import type { RouteDeps } from '../server-context.js';
+import { defineJsonRoute, err, mountJsonRoute, ok, type Result } from '../http/index.js';
 
 export interface RegisterActiveContextRoutesDeps extends RouteDeps<'db' | 'http' | 'projectStore'> {}
 

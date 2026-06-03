@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { detectAgents, detectAgentsStream } from './agents.js';
+import { detectAgents, detectAgentsStream } from '../agents.js';
 import {
   SkillImportError,
   deleteUserSkill,
@@ -10,21 +10,21 @@ import {
   listSkillFiles,
   splitDerivedSkillId,
   updateUserSkill,
-} from './skills.js';
-import { listCodexPets, readCodexPetSpritesheet } from './codex-pets.js';
-import { syncCommunityPets } from './community-pets-sync.js';
-import { readDesignSystem } from './design-systems.js';
+} from '../skills.js';
+import { listCodexPets, readCodexPetSpritesheet } from '../codex-pets.js';
+import { syncCommunityPets } from '../community-pets-sync.js';
+import { readDesignSystem } from '../design-systems.js';
 import {
   LocalDesignSystemImportError,
   importLocalDesignSystemProject,
-} from './design-system-import.js';
-import { importGitHubDesignSystemProject } from './design-system-github-import.js';
-import { renderDesignSystemPreview } from './design-system-preview.js';
-import { renderDesignSystemShowcase } from './design-system-showcase.js';
-import { listPromptTemplates, readPromptTemplate } from './prompt-templates.js';
-import { readAppConfig } from './app-config.js';
-import { installFromTarget, uninstallById } from './library-install.js';
-import type { RouteDeps } from './server-context.js';
+} from '../design-system-import.js';
+import { importGitHubDesignSystemProject } from '../design-system-github-import.js';
+import { renderDesignSystemPreview } from '../design-system-preview.js';
+import { renderDesignSystemShowcase } from '../design-system-showcase.js';
+import { listPromptTemplates, readPromptTemplate } from '../prompt-templates.js';
+import { readAppConfig } from '../app-config.js';
+import { installFromTarget, uninstallById } from '../library-install.js';
+import type { RouteDeps } from '../server-context.js';
 
 export interface RegisterStaticResourceRoutesDeps extends RouteDeps<'http' | 'paths' | 'resources'> {}
 
