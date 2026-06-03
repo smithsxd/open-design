@@ -4370,6 +4370,14 @@ export function ProjectView({
     }
   }, [githubConnected, onOpenSettings, designSystemProject, projectFiles]);
 
+  const handleBrowserUsePrompt = useCallback((text: string) => {
+    setWorkspaceFocused(false);
+    setComposerDraftSignal({
+      text,
+      nonce: Date.now(),
+    });
+  }, []);
+
   const isDeck = useMemo(
     () =>
       (skills.find((s) => s.id === project.skillId) ??
@@ -5049,6 +5057,7 @@ export function ProjectView({
           onSavePreviewComment={savePreviewComment}
           onRemovePreviewComment={removePreviewComment}
           onSendBoardCommentAttachments={handleSendBoardCommentAttachments}
+          onRequestBrowserUsePrompt={handleBrowserUsePrompt}
           onPluginFolderAgentAction={handlePluginFolderAgentAction}
           activePluginActionPaths={activePluginActionPaths}
           focusMode={workspaceFocused}

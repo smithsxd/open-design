@@ -114,6 +114,7 @@ interface Props {
   onSavePreviewComment?: (target: PreviewCommentTarget, note: string, attachAfterSave: boolean, images?: File[]) => Promise<PreviewComment | null>;
   onRemovePreviewComment?: (commentId: string) => Promise<void>;
   onSendBoardCommentAttachments?: (attachments: ChatCommentAttachment[], images?: File[]) => Promise<boolean | void> | boolean | void;
+  onRequestBrowserUsePrompt?: (prompt: string) => void;
   onPluginFolderAgentAction?: (
     relativePath: string,
     action: PluginFolderAgentAction,
@@ -313,6 +314,7 @@ export function FileWorkspace({
   onSavePreviewComment,
   onRemovePreviewComment,
   onSendBoardCommentAttachments,
+  onRequestBrowserUsePrompt,
   onPluginFolderAgentAction,
   activePluginActionPaths,
   hiddenPluginActionPaths,
@@ -1741,6 +1743,7 @@ export function FileWorkspace({
               onSavePreviewComment={onSavePreviewComment}
               onRemovePreviewComment={onRemovePreviewComment}
               onSendBoardCommentAttachments={onSendBoardCommentAttachments}
+              onRequestBrowserUsePrompt={onRequestBrowserUsePrompt}
               onRefreshFiles={onRefreshFiles}
               onOpenFile={openFile}
               onPageInfoChange={(info) => updateBrowserTabInfo(browserTab.id, info)}
