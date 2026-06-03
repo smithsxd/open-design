@@ -793,7 +793,11 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     const modelPopover = screen.getByTestId('settings-byok-model-popover');
     expect(
       within(modelPopover).getAllByRole('option').map((option) => option.textContent?.trim()),
-    ).toEqual(expect.arrayContaining(['Account Model (gpt-account)', 'gpt-4o', 'Custom (type below)…']));
+    ).toEqual(expect.arrayContaining([
+      'Account Model (gpt-account) · From your account',
+      'gpt-4o · Suggested',
+      'Custom (type below)…',
+    ]));
     expect(analyticsTrackMock).toHaveBeenCalledWith(
       'settings_byok_models_fetch_result',
       expect.objectContaining({
@@ -854,6 +858,83 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     );
   });
 
+  it('defaults to an account model when discovery replaces a provider preset', async () => {
+    fetchProviderModelsMock.mockResolvedValueOnce({
+      ok: true,
+      kind: 'success',
+      latencyMs: 12,
+      models: [{ id: 'account-ready-model', label: 'Account Ready' }],
+    });
+    const { onPersist } = renderSettingsDialog({
+      apiProtocol: 'openai',
+      apiKey: 'sk-openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'OpenAI' }));
+
+    expect(await screen.findByText('✓ Loaded 1 models from your account.')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Model' }).textContent).toContain(
+      'Account Ready (account-ready-model) · From your account',
+    );
+    await waitForPersist(
+      onPersist,
+      expect.objectContaining({
+        apiProtocol: 'openai',
+        model: 'account-ready-model',
+      }),
+      {},
+    );
+  });
+
+  it('keeps a suggested model the user explicitly re-picked after discovery resolves', async () => {
+    fetchProviderModelsMock.mockResolvedValueOnce({
+      ok: true,
+      kind: 'success',
+      latencyMs: 12,
+      models: [{ id: 'account-ready-model', label: 'Account Ready' }],
+    });
+    const { onPersist } = renderSettingsDialog({
+      apiProtocol: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'OpenAI' }));
+    expect(fetchProviderModelsMock).not.toHaveBeenCalled();
+
+    // The user deliberately re-picks the suggested model that equals the
+    // provider preset id before discovery runs.
+    fireEvent.click(screen.getByRole('combobox', { name: 'Model' }));
+    const modelPopover = screen.getByTestId('settings-byok-model-popover');
+    fireEvent.click(within(modelPopover).getByRole('option', { name: 'gpt-4o' }));
+
+    // Supplying the key triggers account-model discovery.
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'sk-openai' },
+    });
+    fireEvent.blur(screen.getByLabelText('API key'));
+
+    expect(await screen.findByText('✓ Loaded 1 models from your account.')).toBeTruthy();
+
+    // The explicit pick must survive discovery — no silent rewrite to the
+    // first fetched account model.
+    const modelCombobox = screen.getByRole('combobox', { name: 'Model' });
+    expect(modelCombobox.textContent).toContain('gpt-4o');
+    expect(modelCombobox.textContent).not.toContain('account-ready-model');
+    await waitForPersist(
+      onPersist,
+      expect.objectContaining({
+        apiProtocol: 'openai',
+        model: 'gpt-4o',
+      }),
+      {},
+    );
+  });
+
   it('does not show a BYOK Test button or nag when the API key is still missing', () => {
     renderSettingsDialog({
       apiProtocol: 'anthropic',
@@ -905,7 +986,11 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     const modelPopover = screen.getByTestId('settings-byok-model-popover');
     expect(
       within(modelPopover).getAllByRole('option').map((option) => option.textContent?.trim()),
-    ).toEqual(['gpt-4.1-mini', 'gpt-5.5', 'Custom (type below)…']);
+    ).toEqual([
+      'gpt-4.1-mini · From your account',
+      'gpt-5.5 · From your account',
+      'Custom (type below)…',
+    ]);
   });
 
   it('fetches provider models, merges them into the picker, and preserves a custom current model', async () => {
@@ -943,7 +1028,11 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
     const modelPopover = screen.getByTestId('settings-byok-model-popover');
     expect(
       within(modelPopover).getAllByRole('option').map((option) => option.textContent?.trim()),
-    ).toEqual(expect.arrayContaining(['Remote Alpha (remote-alpha)', 'gpt-4o', 'Custom (type below)…']));
+    ).toEqual(expect.arrayContaining([
+      'Remote Alpha (remote-alpha) · From your account',
+      'gpt-4o · From your account',
+      'Custom (type below)…',
+    ]));
     expect((screen.getByLabelText('Custom model id') as HTMLInputElement).value).toBe('custom-still-here');
   });
 
@@ -1330,6 +1419,45 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
       }),
       undefined,
     );
+  });
+
+  it('focuses the model field when the BYOK test returns model not found', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/api/memory') {
+        return new Response(
+          JSON.stringify({ enabled: true, memories: [], extraction: null }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      expect(url).toBe('/api/test/connection');
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          kind: 'not_found_model',
+          latencyMs: 18,
+          model: 'missing-model',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderSettingsDialog({
+      apiProtocol: 'openai',
+      apiKey: 'sk-openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'missing-model',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'OpenAI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+
+    expect(await screen.findByText("Model 'missing-model' not found on this endpoint.")).toBeTruthy();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Custom model id'));
+    });
   });
 });
 
