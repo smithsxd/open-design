@@ -131,6 +131,16 @@ observation then keeps `generation.input` as the user prompt for Phase 1 and
 gets both metadata and a bounded redacted representation of the allowed prompt
 sections in the order they were composed.
 
+The illustrative envelope below is the **Phase 2** structured `generation.input`
+form (see [Phase 2: Structured Generation Input](#phase-2-structured-generation-input)),
+not the Phase 1 wire shape. In **Phase 1**, `generation.input` stays the raw user
+prompt and the redacted prompt stack is emitted in generation *metadata* using the
+canonical `PromptStackTelemetry` shape defined under
+[Prompt Stack Metadata](#prompt-stack-metadata) below. Both phases reuse the same
+per-section `PromptSectionTelemetry` shape, so the `sections[]` entries here use its
+exact field names (`redactionApplied`, `redactedContent`, `redactedContentBytes`,
+`redactedContentTruncated`).
+
 ```json
 {
   "format": "open-design-composed-prompt",
@@ -143,16 +153,20 @@ sections in the order they were composed.
       "present": true,
       "bytes": 1840,
       "sha256": "sha256:...",
+      "redactionApplied": true,
       "redactedContent": "## OVERRIDE ...",
-      "truncated": false
+      "redactedContentBytes": 1840,
+      "redactedContentTruncated": false
     },
     {
       "name": "daemonSystemPrompt",
       "present": true,
       "bytes": 24120,
       "sha256": "sha256:...",
+      "redactionApplied": true,
       "redactedContent": "bounded redacted system prompt content",
-      "truncated": true
+      "redactedContentBytes": 16384,
+      "redactedContentTruncated": true
     }
   ]
 }
