@@ -481,7 +481,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(generation.usage.total).toBe(512);
   });
 
-  it('leaves model unknown for a default-model run with no status/model event', async () => {
+  it('uses the default model bucket for a default-model run with no status/model event', async () => {
     await writeAppCfg({
       installationId: 'install-uuid-4',
       telemetry: { metrics: true, content: true, artifactManifest: false },
@@ -493,8 +493,8 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     process.env.LANGFUSE_SECRET_KEY = 'sk';
     try {
       // Request never pinned a concrete model (the `default` placeholder) and
-      // the agent never reported one, so the resolved model is genuinely
-      // unknown. Forwarding `default` would manufacture a fake model bucket.
+      // the agent never reported one. Keep this aligned with PostHog's
+      // model_id bucket so Langfuse traces remain filterable by model state.
       await reportRunCompletedFromDaemon({
         db: makeDbWithListMessages({ 'conv-1': [] }),
         dataDir,
@@ -509,11 +509,9 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     const batch = JSON.parse(init.body as string).batch as any[];
     const trace = batch[0].body;
     const generation = bodyOf(batch, 'generation-create', 'llm');
-    expect(trace.metadata.model).toBeUndefined();
-    expect((trace.tags as string[]).some((t) => t.startsWith('model:'))).toBe(
-      false,
-    );
-    expect(generation.model).toBeUndefined();
+    expect(trace.metadata.model).toBe('default');
+    expect(trace.tags).toEqual(expect.arrayContaining(['model:default']));
+    expect(generation.model).toBe('default');
   });
 
   it('omits artifacts when that gate is off', async () => {
