@@ -2036,6 +2036,49 @@ process.stdin.on('end', () => {
     }
   });
 
+  it('routes draw-style image prompts away from od-default and into image generation', async () => {
+    await withFakeAgent(
+      'opencode',
+      `console.log(JSON.stringify({ type: 'text', part: { text: 'draw image route locked' } }));`,
+      async () => {
+        const projectId = `project-${randomUUID()}`;
+        const projectResponse = await fetch(`${baseUrl}/api/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: projectId,
+            name: 'Draw image prompt project',
+            metadata: { kind: 'other' },
+            pluginId: 'od-default',
+          }),
+        });
+        expect(projectResponse.status).toBe(200);
+        const projectBody = await projectResponse.json() as {
+          conversationId: string;
+          appliedPluginSnapshotId?: string;
+        };
+        expect(projectBody.appliedPluginSnapshotId).toBeTruthy();
+
+        const currentPrompt = 'Draw a mascot logo for a winter coffee brand.';
+        const createResponse = await fetch(`${baseUrl}/api/runs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: 'opencode',
+            projectId,
+            conversationId: projectBody.conversationId,
+            appliedPluginSnapshotId: projectBody.appliedPluginSnapshotId,
+            message: ['## user', currentPrompt].join('\n'),
+            currentPrompt,
+          }),
+        });
+        expect(createResponse.status).toBe(202);
+        const createBody = await createResponse.json() as { pluginId: string | null };
+        expect(createBody.pluginId).toBe('od-media-generation');
+      },
+    );
+  });
+
   it('keeps od-default routing for artifact prompts that only mention images incidentally', async () => {
     await withFakeAgent(
       'opencode',

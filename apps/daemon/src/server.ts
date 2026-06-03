@@ -2761,6 +2761,7 @@ const MEDIA_TASK_HINTS = [
     taskType: 'Image',
     patterns: [
       /\b(generate|create|make|render|produce)\s+(?:me\s+|an?\s+|the\s+|some\s+)?(?:[\w-]+\s+){0,2}(image|picture|photo|illustration|poster|logo|icon|banner|portrait|moodboard)\b/i,
+      /\b(draw|illustrate|sketch|design|paint)\s+(?:me\s+|an?\s+|the\s+|some\s+)?(?:[\w-]+\s+){0,2}(image|picture|photo|illustration|poster|logo|icon|banner|portrait|moodboard)\b/i,
       /\b(gpt-image(?:-\d+)?)\b/i,
       /(生图|配图|生成图片)/,
     ],
