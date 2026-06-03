@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceContextItem } from '@open-design/contracts';
+import { motion } from 'motion/react';
+import { modalOverlay, scaleIn } from '../motion';
 import { useT } from '../i18n';
 import { pushRecent, readRecents } from '../quickSwitcherRecents';
 import type { ProjectFile } from '../types';
@@ -138,8 +140,24 @@ export function QuickSwitcher({
   const emptyLabel = hasQuery ? t('quickSwitcher.noMatches') : t('quickSwitcher.empty');
 
   return (
-    <div className="qs-overlay" onMouseDown={onClose} role="dialog" aria-modal="true">
-      <div className="qs-palette" onMouseDown={(e) => e.stopPropagation()}>
+    <motion.div
+      className="qs-overlay"
+      onMouseDown={onClose}
+      role="dialog"
+      aria-modal="true"
+      variants={modalOverlay}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <motion.div
+        className="qs-palette"
+        onMouseDown={(e) => e.stopPropagation()}
+        variants={scaleIn}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+      >
         <input
           ref={inputRef}
           className="qs-input"
@@ -178,8 +196,8 @@ export function QuickSwitcher({
           <span><kbd>↵</kbd> {t('quickSwitcher.open')}</span>
           <span><kbd>esc</kbd> {t('quickSwitcher.close')}</span>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

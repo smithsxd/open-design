@@ -732,6 +732,10 @@ describe('ChatComposer context pickers', () => {
     expect(screen.getByText('Private export workflow')).toBeTruthy();
   });
 
+  // The inline pet popover (the "Pets — wake, tuck, or pick one" button and
+  // its `.composer-pet-menu` flyout) was removed from ChatComposer; only the
+  // pet props survive to drive `/pet` slash handling. Assert the entry stays
+  // gone even when every pet handler is wired.
   it('does not render the pet composer entry when pet handlers are wired', () => {
     renderComposer({
       petConfig: {
@@ -753,5 +757,4 @@ describe('ChatComposer context pickers', () => {
     expect(screen.queryByRole('button', { name: 'Pets — wake, tuck, or pick one' })).toBeNull();
     expect(screen.queryByText('Buddy')).toBeNull();
   });
-
 });

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type ReactNode,
 } from 'react';
 import { Button } from '@open-design/components';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
@@ -62,6 +63,7 @@ import { DesignFilesPanel } from './DesignFilesPanel';
 import { DesignBrowserPanel, labelFromUrl, type BrowserPageInfo } from './DesignBrowserPanel';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { designSystemGithubEvidenceState, repoConnectCopy } from './design-system-github-evidence';
+import { APP_CHROME_FILE_ACTIONS_ID } from './AppChromeHeader';
 import { FileViewer, LiveArtifactViewer } from './FileViewer';
 import { Icon, type IconName } from './Icon';
 import { Toast } from './Toast';
@@ -80,6 +82,7 @@ import {
   parseSketchWorkspaceDocument,
   type SketchItem,
 } from './sketch-model';
+import { AnimatePresence } from 'motion/react';
 import { GenerationPreviewStage } from './GenerationPreviewStage';
 import { AmrGuidance } from './AmrGuidance';
 import { buildGenerationPreviewState } from '../runtime/generation-preview';
@@ -170,6 +173,11 @@ interface Props {
   onLaunchTerminalAuth?: () => void;
   // Conversation id for the AMR promotion-card telemetry payload.
   conversationId?: string | null;
+  // Project-level actions (settings, handoff, avatar menu) rendered at the
+  // right end of the Design Files tab row. The former standalone chrome header
+  // row was removed; these moved here alongside the FileViewer present/Share
+  // portal that targets the same actions container.
+  headerActions?: ReactNode;
 }
 
 interface SketchState {
@@ -343,6 +351,7 @@ export function FileWorkspace({
   onAuthorizeAndRetry,
   onLaunchTerminalAuth,
   conversationId,
+  headerActions,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -1486,6 +1495,16 @@ export function FileWorkspace({
           className={`ws-tabs-bar${tabsOverflowing ? ' is-overflowing' : ''}`}
           role="tablist"
           aria-label={t('workspace.designFiles')}
+          onWheel={(event) => {
+            // Translate vertical wheel into horizontal tab scroll so Windows
+            // mouse-wheel users (no horizontal wheel/trackpad) can reach
+            // overflowed tabs. Only act when there's actually horizontal
+            // overflow and the gesture is predominantly vertical.
+            const el = event.currentTarget;
+            if (el.scrollWidth <= el.clientWidth) return;
+            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+            el.scrollLeft += event.deltaY;
+          }}
           onDragLeave={(event) => {
             if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
             setDragOverTab(null);
@@ -1640,6 +1659,14 @@ export function FileWorkspace({
             container's overflow and the middle file tabs scroll between the
             sticky-left Design Files entry and this button. */}
         <div className="ws-tabs-actions">
+          <div
+            id={APP_CHROME_FILE_ACTIONS_ID}
+            className="ws-tabs-file-actions"
+            data-app-chrome-file-actions="true"
+          />
+          {headerActions ? (
+            <div className="ws-tabs-project-actions">{headerActions}</div>
+          ) : null}
           <button
             ref={launcherBtnRef}
             type="button"
@@ -1943,37 +1970,41 @@ export function FileWorkspace({
         style={{ display: 'none' }}
         onChange={handleFilePicked}
       />
-      {showPasteDialog ? (
-        <PasteTextDialog
-          onClose={() => setShowPasteDialog(false)}
-          onSave={async (name, content) => {
-            setShowPasteDialog(false);
-            // Save under the folder currently being viewed, if any.
-            const target = uploadDir ? `${uploadDir}/${name}` : name;
-            const file = await writeProjectTextFile(projectId, target, content);
-            if (file) {
-              await onRefreshFiles();
-              openFile(file.name);
-            }
-          }}
-        />
-      ) : null}
-      {quickSwitcherOpen ? (
-        <QuickSwitcher
-          projectId={projectId}
-          files={visibleFiles}
-          workspaceContexts={workspaceContexts}
-          onOpenFile={(name) => {
-            openFile(name);
-            setQuickSwitcherOpen(false);
-          }}
-          onOpenTab={(tabId) => {
-            focusWorkspaceTab(tabId);
-            setQuickSwitcherOpen(false);
-          }}
-          onClose={() => setQuickSwitcherOpen(false)}
-        />
-      ) : null}
+      <AnimatePresence>
+        {showPasteDialog ? (
+          <PasteTextDialog
+            onClose={() => setShowPasteDialog(false)}
+            onSave={async (name, content) => {
+              setShowPasteDialog(false);
+              // Save under the folder currently being viewed, if any.
+              const target = uploadDir ? `${uploadDir}/${name}` : name;
+              const file = await writeProjectTextFile(projectId, target, content);
+              if (file) {
+                await onRefreshFiles();
+                openFile(file.name);
+              }
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {quickSwitcherOpen ? (
+          <QuickSwitcher
+            projectId={projectId}
+            files={visibleFiles}
+            workspaceContexts={workspaceContexts}
+            onOpenFile={(name) => {
+              openFile(name);
+              setQuickSwitcherOpen(false);
+            }}
+            onOpenTab={(tabId) => {
+              focusWorkspaceTab(tabId);
+              setQuickSwitcherOpen(false);
+            }}
+            onClose={() => setQuickSwitcherOpen(false)}
+          />
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

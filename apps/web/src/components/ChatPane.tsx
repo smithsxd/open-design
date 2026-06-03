@@ -295,7 +295,6 @@ interface Props {
   activeConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
-  onRenameConversation?: (id: string, title: string) => void;
   // Composer settings/CLI button forwards to here. The dialog lives in App
   // (it owns the AppConfig lifecycle) so we just pass the open trigger.
   onOpenSettings?: (section?: SettingsSection) => void;
@@ -343,7 +342,6 @@ interface Props {
   // each user message — that satisfies §8 "show context inside the run
   // message" without forcing a separate side widget.
   activePluginSnapshot?: AppliedPluginSnapshot | null;
-  onCollapse?: () => void;
   // SenseAudio BYOK only — wired straight through to ChatComposer for the
   // in-composer image-model picker. Active protocol is read so the picker
   // hides when the user is on any other BYOK tab (azure / openai / …).
@@ -357,6 +355,14 @@ interface Props {
   currentDesignSystemId?: string | null;
   onActiveDesignSystemChange?: (project: Project) => void;
   onShowToast?: (message: string) => void;
+  // Project header slot. The former standalone chrome header row was removed;
+  // its back button, project title (editable) and design-system picker moved
+  // into the top of the chat pane. ProjectView owns the project record so it
+  // renders these as slots rather than ChatPane re-deriving the data.
+  onBack?: () => void;
+  backLabel?: string;
+  projectHeader?: ReactNode;
+  designSystemPicker?: ReactNode;
 }
 
 type Tab = 'chat' | 'comments';
@@ -433,7 +439,6 @@ export function ChatPane({
   activeConversationId,
   onSelectConversation,
   onDeleteConversation,
-  onRenameConversation,
   onOpenSettings,
   onOpenAmrSettings,
   onSwitchToAmrAndRetry,
@@ -456,7 +461,6 @@ export function ChatPane({
   researchAvailable,
   activePluginSnapshot,
   skills = [],
-  onCollapse,
   byokApiProtocol,
   byokImageModel,
   onChangeByokImageModel,
@@ -464,6 +468,10 @@ export function ChatPane({
   currentDesignSystemId,
   onActiveDesignSystemChange,
   onShowToast,
+  onBack,
+  backLabel,
+  projectHeader,
+  designSystemPicker,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -947,69 +955,6 @@ export function ChatPane({
 
   const activeConversation =
     conversations.find((c) => c.id === activeConversationId) ?? null;
-  const activeConversationMissing = !activeConversation;
-  const activeConversationTitle =
-    activeConversation
-      ? activeConversation.title || t('chat.untitledConversation')
-      : t('chat.conversationsHeading');
-  const activeConversationRenameLabel = activeConversation
-    ? t('chat.renameConversationLabel', { title: activeConversationTitle })
-    : '';
-  const filteredConversations = useMemo(
-    () => filterConversations(conversations, deferredConversationSearch, t),
-    [conversations, deferredConversationSearch, t],
-  );
-  const titleEditClosedRef = useRef(false);
-  const [editingActiveTitle, setEditingActiveTitle] = useState(false);
-  const [activeTitleDraft, setActiveTitleDraft] = useState('');
-
-  useEffect(() => {
-    if (editingActiveTitle) return;
-    setActiveTitleDraft(activeConversation?.title ?? '');
-  }, [activeConversation?.title, editingActiveTitle]);
-
-  // Switching conversations should always close the inline editor so the
-  // old draft cannot leak into the next conversation.
-  useEffect(() => {
-    titleEditClosedRef.current = true;
-    setEditingActiveTitle(false);
-  }, [activeConversationId]);
-
-  // The selected id can stay stable while the record temporarily vanishes
-  // during a reload; cancel the editor in that case as well.
-  useEffect(() => {
-    if (!activeConversationMissing) return;
-    titleEditClosedRef.current = true;
-    setEditingActiveTitle(false);
-  }, [activeConversationMissing]);
-
-  function beginActiveTitleRename() {
-    if (!activeConversation || !onRenameConversation) return;
-    titleEditClosedRef.current = false;
-    setActiveTitleDraft(activeConversation.title ?? '');
-    setEditingActiveTitle(true);
-  }
-
-  function commitActiveTitleRename() {
-    if (titleEditClosedRef.current) return;
-    titleEditClosedRef.current = true;
-    if (activeConversation && onRenameConversation) {
-      const nextTitle = normalizeConversationRename(
-        activeConversation.title,
-        activeTitleDraft,
-      );
-      if (nextTitle !== null) {
-        onRenameConversation(activeConversation.id, nextTitle);
-      }
-    }
-    setEditingActiveTitle(false);
-  }
-
-  function cancelActiveTitleRename() {
-    titleEditClosedRef.current = true;
-    setActiveTitleDraft(activeConversation?.title ?? '');
-    setEditingActiveTitle(false);
-  }
 
   function jumpToBottom() {
     const el = logRef.current;
@@ -1019,192 +964,103 @@ export function ChatPane({
 
   return (
     <div className="pane">
-      <div className="chat-header">
-        <div className="chat-active-conversation">
-          {editingActiveTitle && activeConversation && onRenameConversation ? (
-            <input
-              autoFocus
-              className="chat-active-conversation-input"
-              data-testid="chat-active-conversation-rename-input"
-              aria-label={activeConversationRenameLabel}
-              value={activeTitleDraft}
-              onChange={(e) => setActiveTitleDraft(e.target.value)}
-              onBlur={commitActiveTitleRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitActiveTitleRename();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancelActiveTitleRename();
-                }
-              }}
-            />
-          ) : (
-            <>
-              <span
-                className="chat-active-conversation-title"
-                data-testid="chat-active-conversation-title"
-                title={activeConversationTitle}
-              >
-                {activeConversationTitle}
-              </span>
-              {activeConversation && onRenameConversation ? (
-                <button
-                  type="button"
-                  className="chat-active-conversation-rename od-tooltip"
-                  aria-label={activeConversationRenameLabel}
-                  title={t('common.rename')}
-                  data-tooltip={t('common.rename')}
-                  data-tooltip-placement="bottom"
-                  onClick={beginActiveTitleRename}
-                >
-                  <Icon name="pencil" size={13} />
-                </button>
-              ) : null}
-            </>
-          )}
-        </div>
-        <div className="chat-header-actions">
-          <div
-            className={`chat-history-wrap${showConvList ? ' open' : ''}`}
-            ref={historyWrapRef}
-          >
-            <button
-              type="button"
-              className="icon-only od-tooltip"
-              data-testid="conversation-history-trigger"
-              title={
-                activeConversation?.title
-                  ? `${t('chat.conversationsTitle')} · ${activeConversation.title}`
-                  : t('chat.conversationsTitle')
-              }
-              data-tooltip={t('chat.conversationsTitle')}
-              data-tooltip-placement="bottom"
-              aria-label={t('chat.conversationsAria')}
-              aria-haspopup="menu"
-              aria-expanded={showConvList}
-              onClick={() => {
-                setShowConvList((v) => {
-                  const next = !v;
-                  if (next) {
-                    trackChatPanelClick(analytics.track, {
-                      page_name: 'chat_panel',
-                      area: 'chat_panel',
-                      element: 'history',
-                    });
-                  }
-                  return next;
-                });
-              }}
-            >
-              <Icon name="history" size={15} />
-            </button>
-            {showConvList ? (
-              <div className="chat-history-menu" role="menu" data-testid="conversation-history-menu">
-                <div className="chat-history-menu-head">
-                  <span className="chat-history-menu-title">
-                    {t('chat.conversationsHeading')}
-                  </span>
-                  {onNewConversation ? (
-                    <button
-                      type="button"
-                      className="chat-history-new od-tooltip"
-                      data-testid="conversation-history-new"
-                      disabled={newConversationDisabled}
-                      title={t('chat.newConversation')}
-                      data-tooltip={t('chat.newConversation')}
-                      onClick={() => {
-                        if (newConversationDisabled) return;
-                        onNewConversation();
-                        setShowConvList(false);
-                      }}
-                    >
-                      <Icon name="plus" size={11} />
-                      <span>{t('chat.new')}</span>
-                    </button>
-                  ) : null}
-                </div>
-                <div className="chat-history-search">
-                  <Icon name="search" size={12} />
-                  <input
-                    autoFocus
-                    value={conversationSearch}
-                    onChange={(event) => setConversationSearch(event.target.value)}
-                    placeholder={t('common.searchEllipsis')}
-                    aria-label={t('common.search')}
-                    data-testid="conversation-history-search"
-                  />
-                  {conversationSearch ? (
-                    <button
-                      type="button"
-                      className="chat-history-search-clear od-tooltip"
-                      aria-label={t('pluginsHome.clearSearch')}
-                      title={t('pluginsHome.clearSearch')}
-                      data-tooltip={t('pluginsHome.clearSearch')}
-                      onClick={() => setConversationSearch('')}
-                    >
-                      <Icon name="close" size={11} />
-                    </button>
-                  ) : null}
-                </div>
-                <ConversationHistoryList
-                  conversations={filteredConversations}
-                  totalConversations={conversations.length}
-                  activeConversationId={activeConversationId}
-                  activeMessageCount={messages.length}
-                  onSelect={(id) => {
-                    onSelectConversation(id);
-                    setShowConvList(false);
-                  }}
-                  onDelete={onDeleteConversation}
-                  onRename={onRenameConversation}
-                  t={t}
-                />
-              </div>
-            ) : null}
-          </div>
+      <div className="chat-project-header">
+        {onBack ? (
           <button
             type="button"
-            className="icon-only od-tooltip"
-            data-testid="new-conversation"
-            title={t('chat.newConversationsTitle')}
-            data-tooltip={t('chat.newConversationsTitle')}
-            data-tooltip-placement="bottom"
-            aria-label={t('chat.newConversation')}
-            onClick={() => {
-              if (!onNewConversation || newConversationDisabled) return;
-              trackChatPanelClick(analytics.track, {
-                page_name: 'chat_panel',
-                area: 'chat_panel',
-                element: 'new_chat',
-              });
-              onNewConversation();
-            }}
-            disabled={!onNewConversation || newConversationDisabled}
+            className="chat-project-back"
+            onClick={onBack}
+            title={backLabel}
+            aria-label={backLabel}
           >
-            <Icon name="plus" size={16} />
+            <Icon name="arrow-left" size={16} />
           </button>
-          {onCollapse ? (
-            <button
-              type="button"
-              className="icon-only od-tooltip"
-              data-testid="chat-collapse"
-              title={t('workspace.focusMode')}
-              data-tooltip={t('workspace.focusMode')}
-              data-tooltip-placement="bottom"
-              aria-label={t('workspace.focusMode')}
-              onClick={() => {
-                trackChatPanelClick(analytics.track, {
-                  page_name: 'chat_panel',
-                  area: 'chat_panel',
-                  element: 'back',
-                });
-                onCollapse();
-              }}
-            >
-              <Icon name="chevron-left" size={15} />
-            </button>
+        ) : null}
+        {projectHeader ? (
+          <span className="chat-project-header-title">{projectHeader}</span>
+        ) : null}
+        <div
+          className={`chat-history-wrap chat-session-switcher${showConvList ? ' open' : ''}`}
+          ref={historyWrapRef}
+        >
+          <button
+            type="button"
+            className="chat-session-trigger icon-only"
+            data-testid="conversation-history-trigger"
+            title={
+              activeConversation?.title
+                ? `${t('chat.conversationsTitle')} · ${activeConversation.title}`
+                : t('chat.conversationsTitle')
+            }
+            aria-label={t('chat.conversationsAria')}
+            aria-haspopup="menu"
+            aria-expanded={showConvList}
+            onClick={() => {
+              setShowConvList((v) => {
+                const next = !v;
+                if (next) {
+                  trackChatPanelClick(analytics.track, {
+                    page_name: 'chat_panel',
+                    area: 'chat_panel',
+                    element: 'history',
+                  });
+                }
+                return next;
+              });
+            }}
+          >
+            <Icon name="comment" size={16} />
+          </button>
+          {showConvList ? (
+            <div className="chat-history-menu" role="menu" data-testid="conversation-history-menu">
+              <div className="chat-history-menu-head">
+                <span className="chat-history-menu-title">
+                  {t('chat.conversationsHeading')}
+                </span>
+                {onNewConversation ? (
+                  <button
+                    type="button"
+                    className="chat-history-new"
+                    data-testid="conversation-history-new"
+                    disabled={newConversationDisabled}
+                    onClick={() => {
+                      if (newConversationDisabled) return;
+                      trackChatPanelClick(analytics.track, {
+                        page_name: 'chat_panel',
+                        area: 'chat_panel',
+                        element: 'new_chat',
+                      });
+                      onNewConversation();
+                      setShowConvList(false);
+                    }}
+                  >
+                    <Icon name="plus" size={11} />
+                    <span>{t('chat.new')}</span>
+                  </button>
+                ) : null}
+              </div>
+              <div className="chat-history-list" data-testid="conversation-list">
+                {conversations.length === 0 ? (
+                  <div className="chat-history-empty">
+                    {t('chat.emptyConversations')}
+                  </div>
+                ) : (
+                  conversations.map((c) => (
+                    <ConversationRow
+                      key={c.id}
+                      conversation={c}
+                      active={c.id === activeConversationId}
+                      onSelect={() => {
+                        onSelectConversation(c.id);
+                        setShowConvList(false);
+                      }}
+                      onDelete={() => onDeleteConversation(c.id)}
+                      t={t}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
           ) : null}
         </div>
       </div>
@@ -1440,6 +1296,7 @@ export function ChatPane({
           />
           <ChatComposer
             ref={composerRef}
+            designSystemPicker={designSystemPicker}
             projectId={projectId}
             projectFiles={projectFiles}
             sessionMode={sessionMode}
@@ -2398,147 +2255,6 @@ export function isAssistantMessageStreaming(
   return true;
 }
 
-function ConversationHistoryList({
-  conversations,
-  totalConversations,
-  activeConversationId,
-  activeMessageCount,
-  onSelect,
-  onDelete,
-  onRename,
-  t,
-}: {
-  conversations: Conversation[];
-  totalConversations: number;
-  activeConversationId: string | null;
-  activeMessageCount: number;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-  onRename?: (id: string, title: string) => void;
-  t: TranslateFn;
-}) {
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
-  const virtualized = conversations.length > CONVERSATION_VIRTUALIZE_THRESHOLD;
-
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    el.scrollTop = 0;
-    setViewport({ scrollTop: 0, height: el.clientHeight || 320 });
-  }, [conversations]);
-
-  useEffect(() => {
-    if (!virtualized) return undefined;
-    const el = listRef.current;
-    if (!el) return undefined;
-    let frame: number | null = null;
-    const readViewport = () => {
-      frame = null;
-      setViewport((current) => {
-        const next = { scrollTop: el.scrollTop, height: el.clientHeight || 320 };
-        return current.scrollTop === next.scrollTop && current.height === next.height
-          ? current
-          : next;
-      });
-    };
-    const scheduleRead = () => {
-      if (frame !== null) return;
-      frame = requestAnimationFrame(readViewport);
-    };
-    scheduleRead();
-    el.addEventListener('scroll', scheduleRead, { passive: true });
-    const observer =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(scheduleRead)
-        : null;
-    observer?.observe(el);
-    return () => {
-      if (frame !== null) cancelAnimationFrame(frame);
-      el.removeEventListener('scroll', scheduleRead);
-      observer?.disconnect();
-    };
-  }, [virtualized]);
-
-  const visibleRows = useMemo(() => {
-    if (!virtualized) {
-      return conversations.map((conversation, index) => ({
-        conversation,
-        top: index * CONVERSATION_ROW_HEIGHT_PX,
-      }));
-    }
-    const height = viewport.height || 320;
-    const start = Math.max(
-      0,
-      Math.floor(viewport.scrollTop / CONVERSATION_ROW_HEIGHT_PX) - CONVERSATION_OVERSCAN_ROWS,
-    );
-    const count =
-      Math.ceil(height / CONVERSATION_ROW_HEIGHT_PX) + CONVERSATION_OVERSCAN_ROWS * 2;
-    return conversations.slice(start, start + count).map((conversation, offset) => {
-      const index = start + offset;
-      return { conversation, top: index * CONVERSATION_ROW_HEIGHT_PX };
-    });
-  }, [conversations, virtualized, viewport.height, viewport.scrollTop]);
-
-  return (
-    <div
-      ref={listRef}
-      className={`chat-history-list${virtualized ? ' is-virtualized' : ''}`}
-      data-testid="conversation-list"
-    >
-      {totalConversations === 0 || conversations.length === 0 ? (
-        <div className="chat-history-empty">
-          {t('chat.emptyConversations')}
-        </div>
-      ) : virtualized ? (
-        <div
-          className="chat-history-virtual-spacer"
-          style={{ height: conversations.length * CONVERSATION_ROW_HEIGHT_PX }}
-        >
-          {visibleRows.map(({ conversation, top }) => (
-            <div
-              key={conversation.id}
-              className="chat-history-virtual-row"
-              style={{ transform: `translateY(${top}px)` }}
-            >
-              <ConversationRow
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
-                messageCount={conversationMessageCount(
-                  conversation,
-                  activeConversationId,
-                  activeMessageCount,
-                )}
-                onSelect={() => onSelect(conversation.id)}
-                onDelete={() => onDelete(conversation.id)}
-                onRename={onRename}
-                t={t}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        visibleRows.map(({ conversation }) => (
-          <ConversationRow
-            key={conversation.id}
-            conversation={conversation}
-            active={conversation.id === activeConversationId}
-            messageCount={conversationMessageCount(
-              conversation,
-              activeConversationId,
-              activeMessageCount,
-            )}
-            onSelect={() => onSelect(conversation.id)}
-            onDelete={() => onDelete(conversation.id)}
-            onRename={onRename}
-            t={t}
-          />
-        ))
-      )}
-    </div>
-  );
-}
-
 function filterConversations(
   conversations: Conversation[],
   query: string,
@@ -2571,98 +2287,34 @@ function compactCount(value: number): string {
 function ConversationRow({
   conversation,
   active,
-  messageCount,
   onSelect,
   onDelete,
-  onRename,
   t,
 }: {
   conversation: Conversation;
   active: boolean;
-  messageCount: number | null;
   onSelect: () => void;
   onDelete: () => void;
-  onRename?: (id: string, title: string) => void;
   t: TranslateFn;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(conversation.title ?? '');
-  const titleEditClosedRef = useRef(false);
   const displayTitle =
     conversation.title || t('chat.untitledConversation');
-
-  function beginConversationRename() {
-    if (!onRename) return;
-    titleEditClosedRef.current = false;
-    setDraft(conversation.title ?? '');
-    setEditing(true);
-  }
-
-  function commitConversationRename() {
-    if (titleEditClosedRef.current) return;
-    titleEditClosedRef.current = true;
-    if (onRename) {
-      const nextTitle = normalizeConversationRename(conversation.title, draft);
-      if (nextTitle !== null) {
-        onRename(conversation.id, nextTitle);
-      }
-    }
-    setEditing(false);
-  }
-
-  function cancelConversationRename() {
-    titleEditClosedRef.current = true;
-    setDraft(conversation.title ?? '');
-    setEditing(false);
-  }
 
   return (
     <div
       className={`chat-conv-item${active ? ' active' : ''}`}
       data-testid={`conversation-item-${conversation.id}`}
     >
-      {editing && onRename ? (
-        <input
-          autoFocus
-          className="chat-conv-rename-input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitConversationRename}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commitConversationRename();
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              cancelConversationRename();
-            }
-          }}
-          style={{ flex: 1, padding: '2px 6px', fontSize: 12 }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="chat-conv-item-name"
-          data-testid={`conversation-select-${conversation.id}`}
-          style={{ background: 'transparent', border: 'none', padding: 0, textAlign: 'left' }}
-          onClick={onSelect}
-          onDoubleClick={beginConversationRename}
-        >
-          {displayTitle}
-        </button>
-      )}
-      <span className="chat-conv-item-meta">
-        {messageCount !== null ? (
-          <span
-            className="chat-conv-message-count"
-            data-testid={`conversation-message-count-${conversation.id}`}
-          >
-            <Icon name="comment" size={11} />
-            {compactCount(messageCount)}
-          </span>
-        ) : null}
-        <span>{conversationMetaLabel(conversation, t)}</span>
-      </span>
+      <button
+        type="button"
+        className="chat-conv-item-name"
+        data-testid={`conversation-select-${conversation.id}`}
+        style={{ background: 'transparent', border: 'none', padding: 0, textAlign: 'left' }}
+        onClick={onSelect}
+      >
+        {displayTitle}
+      </button>
+      <span className="chat-conv-item-meta">{conversationMetaLabel(conversation, t)}</span>
       <button
         type="button"
         className="chat-conv-item-del"
@@ -2681,15 +2333,6 @@ function ConversationRow({
       </button>
     </div>
   );
-}
-
-function normalizeConversationRename(
-  currentTitle: string | null | undefined,
-  draft: string,
-): string | null {
-  const current = (currentTitle ?? '').trim();
-  const next = draft.trim();
-  return next === current ? null : next;
 }
 
 // Memoized (hoisted impl referenced below): a static user message has stable

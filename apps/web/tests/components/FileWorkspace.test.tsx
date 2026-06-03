@@ -1203,6 +1203,7 @@ describe('projectSplitClassName', () => {
     expect(projectSplitStyle(false, 512, 'minmax(420px, 1fr)')).toEqual({
       '--project-chat-panel-width': '512px',
       '--project-workspace-panel-track': 'minmax(420px, 1fr)',
+      gridTemplateColumns: '512px 8px minmax(420px, 1fr)',
     });
     expect(projectSplitStyle(true, 512, 'minmax(420px, 1fr)')).toBeUndefined();
   });

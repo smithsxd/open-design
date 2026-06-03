@@ -11,8 +11,10 @@
 // the real upstream message alongside the daemon's category label.
 
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 
 import { Icon } from './Icon';
+import { toastSlideUp } from '../motion';
 
 export interface ToastProps {
   message: string;
@@ -77,10 +79,14 @@ export function Toast({ message, details, code, ttlMs = DEFAULT_TTL, onDismiss, 
   const iconName = TONE_ICON[tone];
 
   return (
-    <div
+    <motion.div
       className={`od-toast tone-${tone} placement-${placement}${leaving ? ' leaving' : ''}`}
       role={role}
       aria-live={role === 'alert' ? 'assertive' : 'polite'}
+      variants={toastSlideUp}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
     >
       <div className="od-toast-body">
         {iconName ? (
@@ -104,6 +110,6 @@ export function Toast({ message, details, code, ttlMs = DEFAULT_TTL, onDismiss, 
           Dismiss
         </button>
       ) : null}
-    </div>
+    </motion.div>
   );
 }

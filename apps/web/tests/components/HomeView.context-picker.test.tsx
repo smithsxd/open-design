@@ -459,19 +459,19 @@ describe('HomeView context picker', () => {
       />,
     );
 
-    const input = await screen.findByTestId('home-hero-input');
-    fireEvent.change(input, { target: { value: '@lin' } });
+    await screen.findByTestId('home-hero-input');
+    setHomeHeroPrompt('@lin');
     fireEvent.mouseDown(screen.getByRole('option', { name: /linear/i }));
 
     await waitFor(() => {
-      expect((input as HTMLTextAreaElement).value).toBe('@Linear');
+      expect(homeHeroPromptText().trim()).toBe('@Linear');
     });
 
-    fireEvent.change(input, { target: { value: '@Linear @sla' } });
+    setHomeHeroPrompt('@Linear @sla');
     fireEvent.mouseDown(screen.getByRole('option', { name: /slack/i }));
 
     await waitFor(() => {
-      expect((input as HTMLTextAreaElement).value).toBe('@Linear @Slack');
+      expect(homeHeroPromptText().trim()).toBe('@Linear @Slack');
     });
 
     fireEvent.click(screen.getByTestId('home-hero-submit'));

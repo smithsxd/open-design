@@ -189,15 +189,15 @@ describe('ChatComposer design toolbox', () => {
     renderComposer({ onSend });
     await flushMounts();
 
-    const trigger = screen.getByLabelText('打开设计百宝箱');
+    const trigger = screen.getByLabelText('Open design toolbox');
     fireEvent.click(trigger);
 
-    await waitFor(() => expect(screen.getByText('设计百宝箱')).toBeTruthy());
-    fireEvent.click(screen.getByText('反 AI 味美化'));
+    await waitFor(() => expect(screen.getByText('Design toolbox')).toBeTruthy());
+    fireEvent.click(screen.getByText('Remove AI feel'));
 
     await waitFor(() => {
       expect(composerText()).toContain('@design-taste-frontend');
-      expect(composerText()).toContain('反 AI 味美化');
+      expect(composerText()).toContain('anti-AI-feel polish');
     });
 
     fireEvent.click(screen.getByTestId('chat-send'));
@@ -225,7 +225,7 @@ describe('ChatComposer design toolbox', () => {
     });
     await flushMounts();
 
-    fireEvent.click(screen.getByLabelText('打开设计百宝箱'));
+    fireEvent.click(screen.getByLabelText('Open design toolbox'));
 
     const search = screen.getByLabelText('Search design toolbox resources');
     fireEvent.change(search, { target: { value: 'research' } });
@@ -235,17 +235,17 @@ describe('ChatComposer design toolbox', () => {
     });
 
     fireEvent.change(search, { target: { value: '' } });
-    fireEvent.click(screen.getByText('智能匹配下一步'));
+    fireEvent.click(screen.getByText('Match next step'));
 
     await waitFor(() => {
       expect(composerText()).toContain('@creative-director');
-      expect(composerText()).toContain('全局资源索引');
+      expect(composerText()).toContain('Global resource index');
       expect(composerText()).toContain('spreadsheet-ops');
       expect(composerText()).toContain('Research Asset Plugin');
       expect(composerText()).toContain('Higgsfield Video MCP');
       expect(composerText()).toContain('Figma');
       expect(composerText()).toContain('data/proof.csv');
-      expect(composerText()).toContain('不要只看设计百宝箱推荐项');
+      expect(composerText()).toContain('Do not only use design toolbox recommendations');
     });
   });
 });

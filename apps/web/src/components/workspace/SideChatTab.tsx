@@ -161,7 +161,6 @@ export function SideChatTab({
           activeConversationId={conversationId}
           onSelectConversation={onSelectConversation}
           onDeleteConversation={onDeleteConversation}
-          onRenameConversation={onRenameConversation}
           onNewConversation={onNewConversation}
           researchAvailable={config.mode === 'daemon'}
         />

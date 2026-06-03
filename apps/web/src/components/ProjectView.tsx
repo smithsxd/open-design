@@ -10,6 +10,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { validateHtmlArtifact } from '../artifacts/validate';
@@ -145,10 +146,10 @@ import {
 } from '../comments';
 import { filterImplicitProducedFiles } from '../produced-files';
 import { buildPptxExportPrompt } from '../lib/build-pptx-export-prompt';
-import { AppChromeHeader } from './AppChromeHeader';
 import { AvatarMenu } from './AvatarMenu';
 import { EntrySettingsMenu } from './EntrySettingsMenu';
 import { HandoffButton } from './HandoffButton';
+import { Icon } from './Icon';
 import { ProjectDesignSystemPicker } from './ProjectDesignSystemPicker';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
@@ -163,7 +164,6 @@ import { decideAutoOpenAfterWrite } from './auto-open-file';
 import { buildRepoImportPrompt, designSystemNeedsRepoConnect } from './design-system-github-evidence';
 import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
 import { FileWorkspace } from './FileWorkspace';
-import { Icon } from './Icon';
 import {
   type PluginFolderAgentAction,
 } from './design-files/pluginFolderActions';
@@ -4290,23 +4290,6 @@ export function ProjectView({
     [project, onProjectChange, designSystems, analytics.track],
   );
 
-  const handleSaveInstructions = useCallback(async () => {
-    const value = instructionsDraft.trim() || undefined;
-    // After a save, land on the review panel so the saved value is read
-    // back immediately (#1822); collapse only when it was cleared.
-    const settle = () => setInstructionsMode(value ? 'review' : 'closed');
-    if (value === (project.customInstructions ?? undefined)) {
-      settle();
-      return;
-    }
-    setInstructionsSaving(true);
-    const result = await patchProject(project.id, { customInstructions: value ?? null });
-    setInstructionsSaving(false);
-    if (!result) return;
-    onProjectChange(result);
-    settle();
-  }, [project, onProjectChange, instructionsDraft]);
-
   const projectMeta = useMemo(() => {
     // Design system is rendered by the adjacent picker chip — keep the
     // bare meta string focused on skill / mode so the two surfaces
@@ -4847,9 +4830,23 @@ export function ProjectView({
   // pipeline; this hook only governs whether the web layer renders the
   // resulting SSE stream.
   const critiqueTheaterEnabled = useCritiqueTheaterEnabled();
-  const projectInstructions = (project.customInstructions ?? '').trim();
-  const hasProjectInstructions = projectInstructions.length > 0;
-  const projectInstructionsPreview = compactInlinePreview(projectInstructions);
+
+  // CLI / agent selector lives below the chat conversation (composer footer),
+  // not in the top-right header.
+  const executionControls = (
+    <AvatarMenu
+      config={config}
+      agents={agents}
+      daemonLive={daemonLive}
+      onModeChange={onModeChange}
+      onAgentChange={onAgentChange}
+      onAgentModelChange={onAgentModelChange}
+      onOpenSettings={onOpenSettings}
+      onRefreshAgents={onRefreshAgents}
+      onBack={onBack}
+      placement="up"
+    />
+  );
 
   return (
     <div className="app">
@@ -4857,209 +4854,6 @@ export function ProjectView({
         projectId={project.id}
         enabled={critiqueTheaterEnabled}
       />
-      <AppChromeHeader
-        showTrafficSpace={false}
-        onBack={onBack}
-        backLabel={t('project.backToProjects')}
-        fileActionsBefore={(
-          <div
-            className="app-chrome-file-actions-before workspace-tabs-file-actions"
-            data-app-chrome-file-actions="true"
-          />
-        )}
-        actions={(
-          <>
-            <button
-              type="button"
-              className="settings-icon-btn od-tooltip"
-              data-testid="project-settings-trigger"
-              title={t('project.customInstructions')}
-              data-tooltip={t('project.customInstructions')}
-              data-tooltip-placement="bottom"
-              aria-label={t('project.customInstructions')}
-              aria-expanded={instructionsMode !== 'closed'}
-              onClick={() => {
-                setInstructionsDraft(project.customInstructions ?? '');
-                setInstructionsMode(hasProjectInstructions ? 'review' : 'edit');
-              }}
-            >
-              <Icon name="sliders" size={16} />
-            </button>
-            <HandoffButton
-              projectId={project.id}
-              projectName={project.name}
-              projectDir={projectDetail.resolvedDir}
-              agents={agents}
-            />
-            <AvatarMenu
-              config={config}
-              agents={agents}
-              daemonLive={daemonLive}
-              onModeChange={onModeChange}
-              onAgentChange={onAgentChange}
-              onAgentModelChange={onAgentModelChange}
-              onOpenSettings={onOpenSettings}
-              onRefreshAgents={onRefreshAgents}
-            />
-            <EntrySettingsMenu
-              config={config}
-              onThemeChange={handleThemeChange}
-              onOpenSettings={onOpenSettings}
-            />
-          </>
-        )}
-      >
-        <div className="app-project-title">
-          <span className="app-project-title-line">
-            <span
-              className="title editable"
-              data-testid="project-title"
-              title={project.name}
-              tabIndex={0}
-              role="textbox"
-              suppressContentEditableWarning
-              contentEditable
-              onBlur={(e) => handleProjectRename(e.currentTarget.textContent ?? '')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  (e.currentTarget as HTMLElement).blur();
-                }
-              }}
-            >
-              {project.name}
-            </span>
-            {projectMeta !== t('project.metaFreeform') ? (
-              <span className="meta" data-testid="project-meta">{projectMeta}</span>
-            ) : null}
-            <ProjectDesignSystemPicker
-              designSystems={designSystems}
-              selectedId={project.designSystemId ?? null}
-              onChange={handleChangeDesignSystemId}
-            />
-            {hasProjectInstructions ? (
-              <button
-                type="button"
-                className={`project-instructions-chip${instructionsMode !== 'closed' ? ' is-open' : ''}`}
-                data-testid="project-instructions-chip"
-                title={projectInstructions}
-                aria-label={t('project.customInstructions')}
-                aria-expanded={instructionsMode !== 'closed'}
-                onClick={() => setInstructionsMode((m) => (m === 'closed' ? 'review' : 'closed'))}
-              >
-                <Icon name="sliders" size={11} />
-                <span>&quot;{projectInstructionsPreview}&quot;</span>
-              </button>
-            ) : null}
-          </span>
-        </div>
-      </AppChromeHeader>
-      {instructionsMode !== 'closed' && (
-        <div
-          className="project-instructions-modal-backdrop"
-          data-testid="project-instructions-modal"
-          onMouseDown={(event) => {
-            if (event.target !== event.currentTarget) return;
-            setInstructionsDraft(project.customInstructions ?? '');
-            setInstructionsMode('closed');
-          }}
-        >
-          <div
-            className={`project-instructions-modal${instructionsMode === 'review' ? ' project-instructions-review' : ''}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="project-instructions-modal-title"
-          >
-            <div className="project-instructions-modal-head">
-              <div className="project-instructions-modal-title-wrap">
-                <h2 id="project-instructions-modal-title" className="project-instructions-modal-title">
-                  {t('project.customInstructions')}
-                </h2>
-                {instructionsMode === 'review' ? (
-                  <span className="project-instructions-status">
-                    <Icon name="check" size={11} />
-                    {t('project.instructionsActive')}
-                  </span>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="project-instructions-modal-close"
-                aria-label={t('common.close')}
-                onClick={() => {
-                  setInstructionsDraft(project.customInstructions ?? '');
-                  setInstructionsMode('closed');
-                }}
-              >
-                <Icon name="close" size={14} />
-              </button>
-            </div>
-            {instructionsMode === 'review' ? (
-              <>
-                <div className="project-instructions-preview" data-testid="project-instructions-preview">
-                  {project.customInstructions}
-                </div>
-                <div className="project-instructions-actions">
-                  <button
-                    type="button"
-                    className="btn-sm"
-                    onClick={() => setInstructionsMode('closed')}
-                  >
-                    {t('common.close')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-sm btn-primary"
-                    data-testid="project-instructions-edit"
-                    onClick={() => {
-                      setInstructionsDraft(project.customInstructions ?? '');
-                      setInstructionsMode('edit');
-                    }}
-                  >
-                    {t('common.edit')}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <textarea
-                  className="project-instructions-input"
-                  data-testid="project-instructions-textarea"
-                  rows={6}
-                  maxLength={5000}
-                  placeholder={t('project.customInstructionsPlaceholder')}
-                  value={instructionsDraft}
-                  onChange={(e) => setInstructionsDraft(e.target.value)}
-                  disabled={instructionsSaving}
-                  autoFocus
-                />
-                <div className="project-instructions-actions">
-                  <button
-                    type="button"
-                    className="btn-sm"
-                    disabled={instructionsSaving}
-                    onClick={() => {
-                      setInstructionsDraft(project.customInstructions ?? '');
-                      setInstructionsMode((project.customInstructions ?? '').trim() ? 'review' : 'closed');
-                    }}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-sm btn-primary"
-                    data-testid="project-instructions-save"
-                    disabled={instructionsSaving}
-                    onClick={handleSaveInstructions}
-                  >
-                    {t('common.save')}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
       {/* ProjectActionsToolbar removed per 00efdcba — hide finalize-design
           toolbar from project header. Restore from cf1cd9bb if product
           wants the Finalize + Continue-in-CLI buttons back in the chrome. */}
@@ -5134,7 +4928,6 @@ export function ProjectView({
               activeConversationId={activeConversationId}
               onSelectConversation={handleSelectConversation}
               onDeleteConversation={handleDeleteConversation}
-              onRenameConversation={handleRenameConversation}
               onOpenSettings={onOpenSettings}
               onOpenAmrSettings={onOpenAmrSettings}
               onSwitchToAmrAndRetry={handleSwitchToAmrAndRetry}
@@ -5170,7 +4963,41 @@ export function ProjectView({
               onShowToast={(message) => {
                 setProjectActionsToast({ message, details: null });
               }}
-              onCollapse={() => setWorkspaceFocused(true)}
+              onBack={onBack}
+              backLabel={t('project.backToProjects')}
+              composerFooterAccessory={executionControls}
+              projectHeader={(
+                <span className="chat-project-title-line">
+                  <span
+                    className="title editable"
+                    data-testid="project-title"
+                    title={project.name}
+                    tabIndex={0}
+                    role="textbox"
+                    suppressContentEditableWarning
+                    contentEditable
+                    onBlur={(e) => handleProjectRename(e.currentTarget.textContent ?? '')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLElement).blur();
+                      }
+                    }}
+                  >
+                    {project.name}
+                  </span>
+                  {projectMeta !== t('project.metaFreeform') ? (
+                    <span className="meta" data-testid="project-meta">{projectMeta}</span>
+                  ) : null}
+                </span>
+              )}
+              designSystemPicker={(
+                <ProjectDesignSystemPicker
+                  designSystems={designSystems}
+                  selectedId={project.designSystemId ?? null}
+                  onChange={handleChangeDesignSystemId}
+                />
+              )}
             />
           ) : (
             <div className="pane" data-testid="chat-pane-loading">
@@ -5258,6 +5085,20 @@ export function ProjectView({
           onAuthorizeAndRetry={handleSwitchToAmrAndRetry}
           onLaunchTerminalAuth={handleLaunchAntigravityOauth}
           conversationId={activeConversationId}
+          headerActions={(
+            <>
+              <button
+                type="button"
+                className="settings-icon-btn"
+                onClick={() => onOpenSettings('execution')}
+                title={t('chat.cliSettingsTitle')}
+                aria-label={t('chat.cliSettingsAria')}
+              >
+                <Icon name="settings" size={16} />
+              </button>
+              <HandoffButton projectId={project.id} />
+            </>
+          )}
         />
       </div>
       {contextPluginDetails ? (
@@ -5274,14 +5115,16 @@ export function ProjectView({
           onClose={() => setContextDesignSystemDetails(null)}
         />
       ) : null}
-      {projectActionsToast ? (
-        <Toast
-          message={projectActionsToast.message}
-          details={projectActionsToast.details}
-          code={projectActionsToast.code}
-          onDismiss={() => setProjectActionsToast(null)}
-        />
-      ) : null}
+      <AnimatePresence>
+        {projectActionsToast ? (
+          <Toast
+            message={projectActionsToast.message}
+            details={projectActionsToast.details}
+            code={projectActionsToast.code}
+            onDismiss={() => setProjectActionsToast(null)}
+          />
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -5468,10 +5311,6 @@ function stripQueueOnlyFromMeta(meta: ChatSendMeta | undefined): ProjectChatSend
   if (!meta) return undefined;
   const { queueOnly: _queueOnly, ...rest } = meta;
   return Object.keys(rest).length > 0 ? rest : undefined;
-}
-
-function compactInlinePreview(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
 }
 
 export interface RetryTarget {

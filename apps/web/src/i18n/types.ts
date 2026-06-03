@@ -225,6 +225,7 @@ export interface Dict {
   'settings.test': string;
   'settings.testTitle': string;
   'settings.testRunning': string;
+  'settings.byokReadyToTest': string;
   'settings.testCancel': string;
   'settings.testRetry': string;
   'settings.required': string;
@@ -276,9 +277,13 @@ export interface Dict {
   'settings.amrSigningIn': string;
   'settings.amrCancelSignIn': string;
   'settings.amrAccountStatus': string;
+  'settings.amrConsole': string;
   'settings.amrLoginErrorCompact': string;
   'settings.apiSection': string;
   'settings.quickFillProvider': string;
+  'settings.providerPreset': string;
+  'settings.protocolGroupProtocols': string;
+  'settings.protocolGroupGateways': string;
   'settings.customProvider': string;
   'settings.apiKey': string;
   'settings.apiKeyGetLink': string;
@@ -290,6 +295,8 @@ export interface Dict {
   'settings.apiKeyInvalid': string;
   'settings.apiKeyCleaned': string;
   'settings.modelsLoadedFromAccount': string;
+  'settings.modelSourceAccount': string;
+  'settings.modelSourceSuggested': string;
   'settings.fetchModels': string;
   'settings.fetchModelsTitle': string;
   'settings.fetchModelsRunning': string;
@@ -311,6 +318,7 @@ export interface Dict {
   'settings.azureBaseUrlPlaceholder': string;
   'settings.azureBaseUrlHint': string;
   'settings.azureDeploymentModel': string;
+  'settings.azureCustomDeploymentName': string;
   'settings.azureDeploymentModelHint': string;
   'settings.azureModelFetchHint': string;
   'settings.apiVersion': string;
@@ -336,6 +344,7 @@ export interface Dict {
   'settings.reasoningPicker': string;
   'settings.modelPickerHint': string;
   'settings.modelPickerLiveHint': string;
+  'settings.modelPickerLiveCatalogOnlyHint': string;
   'settings.modelPickerFallbackHint': string;
   'settings.cliEnvTitle': string;
   'settings.cliEnvHint': string;
@@ -1712,6 +1721,8 @@ export interface Dict {
   'avatar.useApi': string;
   'avatar.codeAgent': string;
   'avatar.rescan': string;
+  'avatar.amrConsole': string;
+  'avatar.amrConsoleMeta': string;
   'avatar.settings': string;
   'avatar.backToProjects': string;
   'avatar.metaActive': string;

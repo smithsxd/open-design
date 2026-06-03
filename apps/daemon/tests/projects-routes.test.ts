@@ -13,7 +13,7 @@
  */
 import type http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { mkdir, readdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -341,33 +341,33 @@ describe('GET /api/projects/:id resolvedDir', () => {
   // ensureProject and would materialize a `.od/projects/<id>/...` directory
   // with no DB row, leaving orphaned state and breaking the invariant the
   // neighboring project-file routes rely on.
-  it('returns 404 PROJECT_NOT_FOUND for GET /folders on an unknown project', async () => {
-    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`);
-    expect(resp.status).toBe(404);
-    const body = (await resp.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
-  });
+  it('returns 404 for unknown project folder routes without creating project files', async () => {
+    const missingProjectId = `missing-folder-routes-${Date.now()}`;
+    const requests = [
+      fetch(`${baseUrl}/api/projects/${missingProjectId}/folders`),
+      fetch(`${baseUrl}/api/projects/${missingProjectId}/folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'orphan' }),
+      }),
+      fetch(`${baseUrl}/api/projects/${missingProjectId}/folders`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'orphan' }),
+      }),
+    ];
 
-  it('returns 404 PROJECT_NOT_FOUND for POST /folders on an unknown project', async () => {
-    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'should-not-be-created' }),
-    });
-    expect(resp.status).toBe(404);
-    const body = (await resp.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
-  });
+    for (const response of await Promise.all(requests)) {
+      expect(response.status).toBe(404);
+      const body = (await response.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
+    }
 
-  it('returns 404 PROJECT_NOT_FOUND for DELETE /folders on an unknown project', async () => {
-    const resp = await fetch(`${baseUrl}/api/projects/unknown-folders-${Date.now()}/folders`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: 'whatever' }),
+    const dataDir = process.env.OD_DATA_DIR;
+    if (!dataDir) throw new Error('OD_DATA_DIR is required for daemon route tests');
+    await expect(stat(path.join(dataDir, 'projects', missingProjectId))).rejects.toMatchObject({
+      code: 'ENOENT',
     });
-    expect(resp.status).toBe(404);
-    const body = (await resp.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe('PROJECT_NOT_FOUND');
   });
 
   it('creates, lists, and deletes a folder for a real project', async () => {
