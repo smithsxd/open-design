@@ -119,9 +119,7 @@ vi.mock('../../src/components/Loading', () => ({
 }));
 
 vi.mock('../../src/components/ChatPane', () => ({
-  ChatPane: ({ composerFooterAccessory }: { composerFooterAccessory?: ReactNode }) => (
-    <div data-testid="chat-pane">{composerFooterAccessory}</div>
-  ),
+  ChatPane: () => <div data-testid="chat-pane" />,
 }));
 
 const mockedListConversations = vi.mocked(listConversations);
@@ -186,6 +184,10 @@ function ProjectViewHarness({ initialProject }: { initialProject: Project }) {
 
 const SAVED = 'Always use tabs, never spaces.';
 
+async function openProjectInstructionsFromSettings() {
+  fireEvent.click(await screen.findByTestId('project-settings-trigger'));
+}
+
 describe('ProjectView – saved Project instructions surface (#1822)', () => {
   beforeEach(() => {
     mockedListConversations.mockResolvedValue([conversation]);
@@ -235,43 +237,33 @@ describe('ProjectView – saved Project instructions surface (#1822)', () => {
     expect(textarea.value).toBe(SAVED);
   });
 
-  it('creates project instructions from the empty-state composer affordance', async () => {
-    mockedPatchProject.mockResolvedValue({ ...baseProject, customInstructions: 'Keep the UI sparse.' });
+  it('offers an add affordance and opens an empty editor when no instructions are saved', async () => {
     render(<ProjectViewHarness initialProject={baseProject} />);
 
-    expect(screen.queryByTestId('project-settings-trigger')).toBeNull();
+    expect(await screen.findByTestId('project-settings-trigger')).toBeTruthy();
     expect(screen.queryByTestId('project-instructions-chip')).toBeNull();
 
-    fireEvent.click(await screen.findByTestId('project-instructions-add'));
+    await openProjectInstructionsFromSettings();
 
     const textarea = screen.getByTestId('project-instructions-textarea') as HTMLTextAreaElement;
     expect(textarea.value).toBe('');
-    fireEvent.change(textarea, {
-      target: { value: 'Keep the UI sparse.' },
-    });
-    fireEvent.click(screen.getByTestId('project-instructions-save'));
-
-    expect(mockedPatchProject).toHaveBeenCalledWith('project-1', { customInstructions: 'Keep the UI sparse.' });
-    await waitFor(() => {
-      expect(screen.getByTestId('project-instructions-chip')).toBeTruthy();
-      expect(screen.getByTestId('project-instructions-preview').textContent).toBe('Keep the UI sparse.');
-    });
   });
 
-  it('reads the saved value back in the review panel right after editing existing instructions', async () => {
-    mockedPatchProject.mockResolvedValue({ ...baseProject, customInstructions: `${SAVED} Please.` });
-    render(<ProjectViewHarness initialProject={{ ...baseProject, customInstructions: SAVED }} />);
+  it('reads the saved value back in the review panel right after a save', async () => {
+    mockedPatchProject.mockResolvedValue({ ...baseProject, customInstructions: SAVED });
+    render(<ProjectViewHarness initialProject={baseProject} />);
 
-    fireEvent.click(await screen.findByTestId('project-instructions-chip'));
-    fireEvent.click(screen.getByTestId('project-instructions-edit'));
+    await openProjectInstructionsFromSettings();
     fireEvent.change(screen.getByTestId('project-instructions-textarea'), {
-      target: { value: `${SAVED} Please.` },
+      target: { value: SAVED },
     });
     fireEvent.click(screen.getByTestId('project-instructions-save'));
 
-    expect(mockedPatchProject).toHaveBeenCalledWith('project-1', { customInstructions: `${SAVED} Please.` });
+    expect(mockedPatchProject).toHaveBeenCalledWith('project-1', { customInstructions: SAVED });
+    // Save lands on the review panel so the stored value is confirmed back.
     await waitFor(() => {
-      expect(screen.getByTestId('project-instructions-preview').textContent).toBe(`${SAVED} Please.`);
+      expect(screen.getByTestId('project-instructions-preview').textContent).toBe(SAVED);
     });
+    expect(screen.getByTestId('project-instructions-chip')).toBeTruthy();
   });
 });

@@ -4273,37 +4273,6 @@ export function ProjectView({
   const projectInstructions = (project.customInstructions ?? '').trim();
   const hasProjectInstructions = projectInstructions.length > 0;
   const projectInstructionsPreview = compactInlinePreview(projectInstructions);
-  const executionControls = (
-    <>
-      {!hasProjectInstructions ? (
-        <button
-          type="button"
-          className="icon-btn"
-          data-testid="project-instructions-add"
-          title={t('project.customInstructions')}
-          aria-label={t('project.customInstructions')}
-          onClick={() => {
-            setInstructionsDraft('');
-            setInstructionsMode('edit');
-          }}
-        >
-          <Icon name="sliders" size={15} />
-        </button>
-      ) : null}
-      <AvatarMenu
-        config={config}
-        agents={agents}
-        daemonLive={daemonLive}
-        onModeChange={onModeChange}
-        onAgentChange={onAgentChange}
-        onAgentModelChange={onAgentModelChange}
-        onOpenSettings={() => onOpenSettings('execution')}
-        onRefreshAgents={onRefreshAgents}
-        onBack={onBack}
-        placement="up"
-      />
-    </>
-  );
 
   return (
     <div className="app">
@@ -4316,29 +4285,43 @@ export function ProjectView({
         onBack={onBack}
         backLabel={t('project.backToProjects')}
         fileActionsBefore={(
+          <div
+            className="app-chrome-file-actions-before workspace-tabs-file-actions"
+            data-app-chrome-file-actions="true"
+          />
+        )}
+        actions={(
           <>
-            <HandoffButton projectId={project.id} />
             <button
               type="button"
               className="settings-icon-btn"
-              onClick={() => onOpenSettings('execution')}
-              title={t('chat.cliSettingsTitle')}
-              aria-label={t('chat.cliSettingsAria')}
+              data-testid="project-settings-trigger"
+              title={t('project.customInstructions')}
+              aria-label={t('project.customInstructions')}
+              aria-expanded={instructionsMode !== 'closed'}
+              onClick={() => {
+                setInstructionsDraft(project.customInstructions ?? '');
+                setInstructionsMode(hasProjectInstructions ? 'review' : 'edit');
+              }}
             >
-              <Icon name="settings" size={16} />
+              <Icon name="sliders" size={16} />
             </button>
-            {/* MERGE-TODO(@zoeforfun #3266, @AmyShang-alt): kept main's toolbar
-                layout (Handoff + settings + workspace-tabs div; AvatarMenu lives
-                in the up-placement menu above). release/v0.9.0 relocated
-                Handoff+AvatarMenu into AppChromeHeader's actions= slot — decide
-                whether to adopt that shipped layout here. */}
-            <div
-              className="app-chrome-file-actions-before workspace-tabs-file-actions"
-              data-app-chrome-file-actions="true"
+            <HandoffButton projectId={project.id} />
+            <AvatarMenu
+              config={config}
+              agents={agents}
+              daemonLive={daemonLive}
+              onModeChange={onModeChange}
+              onAgentChange={onAgentChange}
+              onAgentModelChange={onAgentModelChange}
+              onApiModelChange={onApiModelChange}
+              providerModelsCache={providerModelsCache}
+              onOpenSettings={onOpenSettings}
+              onRefreshAgents={onRefreshAgents}
+              onBack={onBack}
             />
           </>
         )}
-        actions={null}
       >
         <div className="app-project-title">
           <span className="app-project-title-line">
@@ -4544,7 +4527,6 @@ export function ProjectView({
                 onProjectChange({ ...project, skillId });
               }}
               activePluginSnapshot={activePluginSnapshot}
-              composerFooterAccessory={executionControls}
               currentDesignSystemId={project.designSystemId}
               onActiveDesignSystemChange={(updatedProject) => {
                 onProjectChange(updatedProject);
