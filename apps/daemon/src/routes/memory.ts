@@ -1,5 +1,5 @@
-// @ts-nocheck
 import type { Express } from 'express';
+import type { RouteDeps } from '../server-context.js';
 
 import {
   buildMemoryTree,
@@ -28,7 +28,9 @@ import {
   suggestMemoryFromConnectors,
 } from '../memory-connectors.js';
 
-export function registerMemoryRoutes(app: Express, ctx) {
+export interface RegisterMemoryRoutesDeps extends RouteDeps<'http' | 'paths' | 'appConfig'> {}
+
+export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps) {
   const { RUNTIME_DATA_DIR, PROJECT_ROOT, PROJECTS_DIR } = ctx.paths;
   const { createSseResponse, requireLocalDaemonRequest } = ctx.http;
   const { readAppConfig } = ctx.appConfig;

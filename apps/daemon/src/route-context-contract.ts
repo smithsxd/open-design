@@ -7,6 +7,7 @@ import type { RegisterHandoffRoutesDeps } from './routes/handoff.js';
 import type { RegisterLiveArtifactRoutesDeps } from './routes/live-artifact.js';
 import type { RegisterMcpRoutesDeps } from './mcp-routes.js';
 import type { RegisterMediaRoutesDeps } from './media-routes.js';
+import type { RegisterMemoryRoutesDeps } from './routes/memory.js';
 import type { RegisterProjectArtifactRoutesDeps, RegisterProjectFileRoutesDeps, RegisterProjectRoutesDeps, RegisterProjectUploadRoutesDeps } from './project-routes.js';
 import type { RegisterRoutineRoutesDeps } from './routes/routine.js';
 import type { RegisterStaticResourceRoutesDeps } from './routes/static-resource.js';
@@ -22,6 +23,7 @@ type AllRegisteredRouteDeps =
   & RegisterLiveArtifactRoutesDeps
   & RegisterMcpRoutesDeps
   & RegisterMediaRoutesDeps
+  & RegisterMemoryRoutesDeps
   & RegisterProjectArtifactRoutesDeps
   & RegisterProjectExportRoutesDeps
   & RegisterProjectFileRoutesDeps
