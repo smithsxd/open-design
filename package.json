@@ -53,6 +53,12 @@
       "better-sqlite3",
       "electron",
       "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "core-js",
+      "electron-winstaller",
+      "protobufjs",
+      "sharp"
     ]
   }
 }
