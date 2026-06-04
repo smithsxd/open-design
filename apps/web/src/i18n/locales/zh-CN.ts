@@ -113,7 +113,7 @@ export const zhCN: Dict = {
   'settings.onboardingStepConnect': "连接",
   'settings.onboardingStepDesignSystem': "设计系统",
   'settings.onboardingStepProfile': "了解你",
-  'settings.onboardingStepNewsletter': '订阅更新',
+  'settings.onboardingStepNewsletter': '获取最新动态',
   'settings.onboardingNewsletterTitle': '获取最新动态',
   'settings.onboardingNewsletterBody': '留下邮箱，接收产品更新、新模板、设计系统资源和社区活动。',
   'settings.onboardingConnectTitle': "选择运行方式",
