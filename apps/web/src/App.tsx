@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
+import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { useAnalytics } from './analytics/provider';
 import {
   trackFileUploadResult,
@@ -12,7 +13,7 @@ import {
   projectKindToTracking,
   fidelityToTracking,
 } from '@open-design/contracts/analytics';
-import type { AmrModelsResponse } from '@open-design/contracts';
+import type { AmrModelsResponse, ChatSessionMode } from '@open-design/contracts';
 import { EntryView } from './components/EntryView';
 import type { IntegrationTab } from './components/IntegrationsView';
 import { MarketplaceView } from './components/MarketplaceView';
@@ -24,6 +25,7 @@ import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
 import { buildPetTaskCenter } from './components/pet/taskCenter';
 import { migrateCustomPetAtlas } from './components/pet/pets';
 import { ProjectView } from './components/ProjectView';
+import { TooltipLayer } from './components/TooltipLayer';
 import { openWorkspaceTab, WorkspaceTabsBar } from './components/WorkspaceTabsBar';
 import {
   DesignSystemCreationFlow,
@@ -88,6 +90,7 @@ import {
   deleteTemplate,
   patchProject,
 } from './state/projects';
+import { useModalWindowDragGuard } from './hooks/useModalWindowDragGuard';
 import type {
   PluginShareAction,
   PluginShareProjectOutcome,
@@ -215,10 +218,18 @@ function mergeAmrModelsIntoAgents(
 }
 
 export function App() {
+  // `reducedMotion="user"` makes every motion/react component honor the OS
+  // `prefers-reduced-motion` setting: transform/layout animations are zeroed
+  // out while opacity-only changes are kept. The CSS `@media (prefers-reduced-
+  // motion: reduce)` block covers the CSS-keyframe surfaces, but the dialogs,
+  // toasts and popovers that moved to motion/react need this gate too — without
+  // it they keep springing/sliding for users who asked us not to animate.
   return (
-    <IframeKeepAliveProvider>
-      <AppInner />
-    </IframeKeepAliveProvider>
+    <MotionConfig reducedMotion="user">
+      <IframeKeepAliveProvider>
+        <AppInner />
+      </IframeKeepAliveProvider>
+    </MotionConfig>
   );
 }
 
@@ -226,6 +237,7 @@ function AppInner() {
   const { t } = useI18n();
   const iframeKeepAlivePool = useIframeKeepAlivePool();
   const clientType = useMemo(() => detectClientType(), []);
+  useModalWindowDragGuard();
   // Observability marker. `apps/web/src/observability/white-screen.ts`
   // keys its "app actually mounted" success condition on this attribute
   // because the dynamic-import loading shell (`<div class="od-loading-shell">
@@ -1016,6 +1028,7 @@ function AppInner() {
         pluginId?: string;
         appliedPluginSnapshotId?: string;
         pluginInputs?: Record<string, unknown>;
+        conversationMode?: ChatSessionMode;
         autoSendFirstMessage?: boolean;
         requestId?: string;
         pendingFiles?: File[];
@@ -1040,6 +1053,7 @@ function AppInner() {
         designSystemId: input.designSystemId,
         pendingPrompt: derivedPendingPrompt,
         metadata: input.metadata,
+        ...(input.conversationMode ? { conversationMode: input.conversationMode } : {}),
         ...(input.pluginId ? { pluginId: input.pluginId } : {}),
         ...(input.appliedPluginSnapshotId
           ? { appliedPluginSnapshotId: input.appliedPluginSnapshotId }
@@ -1726,6 +1740,7 @@ function AppInner() {
         onAgentChange={handleAgentChange}
         onAgentModelChange={handleAgentModelChange}
         onRefreshAgents={refreshAgents}
+        onThemeChange={handleThemeChange}
         onOpenSettings={openSettings}
         onOpenAmrSettings={openAmrSettings}
         onOpenMcpSettings={openMcpSettings}
@@ -1833,7 +1848,9 @@ function AppInner() {
           route={route}
           projects={projects}
         />
-        <div className="workspace-shell__body">{appMain}</div>
+        <div className="workspace-shell__body">
+          {appMain}
+        </div>
       </div>
       {clientType === 'desktop' ? null : (
         <PetOverlay
@@ -1842,6 +1859,8 @@ function AppInner() {
           onOpenProject={handleOpenProject}
         />
       )}
+      <TooltipLayer />
+      <AnimatePresence>
       {settingsOpen ? (
         <SettingsDialog
           initial={config}
@@ -1885,6 +1904,7 @@ function AppInner() {
           onProviderModelsCacheChange={setProviderModelsCache}
         />
       ) : null}
+      </AnimatePresence>
       <MemoryToast onOpenMemory={() => openSettings('memory')} />
       {workingDirError ? (
         <Toast
@@ -1900,7 +1920,14 @@ function AppInner() {
           finish both flip the flag). Independent of Settings: z-index in
           index.css sits above modal backdrops so opening Settings does
           not hide the banner. */}
+      <AnimatePresence>
       {showPrivacyConsent ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+        >
         <PrivacyConsentModal
           onAccept={() => {
             // Default opt-in: clicking "I get it" enables the same telemetry
@@ -1919,7 +1946,9 @@ function AppInner() {
             });
           }}
         />
+      </motion.div>
       ) : null}
+      </AnimatePresence>
     </>
   );
 }

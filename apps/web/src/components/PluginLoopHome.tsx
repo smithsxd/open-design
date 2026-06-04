@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ApplyResult,
+  ChatSessionMode,
   InstalledPluginRecord,
   ProjectMetadata,
 } from '@open-design/contracts';
@@ -46,6 +47,7 @@ export interface PluginLoopSubmit {
   // post-creation working-dir POST so the daemon's desktop-auth gate accepts
   // it. Null/absent for web picks (gate inactive) or no selection.
   workingDirToken?: string | null;
+  conversationMode?: ChatSessionMode;
   // Files staged on Home before the project exists. App uploads them
   // into the created project's Design Files before the first auto-send.
   attachments?: File[];

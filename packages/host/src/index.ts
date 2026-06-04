@@ -1,5 +1,5 @@
 export const OPEN_DESIGN_HOST_GLOBAL = "__od__";
-export const OPEN_DESIGN_HOST_VERSION = 1;
+export const OPEN_DESIGN_HOST_VERSION = 2;
 
 export const OPEN_DESIGN_HOST_CLIENT_TYPES = Object.freeze({
   DESKTOP: "desktop",
@@ -83,6 +83,16 @@ export type OpenDesignHostPickWorkingDirResult =
 
 export type OpenDesignHostPdfPrintOptions = {
   deck?: boolean;
+};
+
+export type OpenDesignHostCaptureClip = { x: number; y: number; width: number; height: number };
+export type OpenDesignHostCaptureOptions = { clip?: OpenDesignHostCaptureClip };
+export type OpenDesignHostCaptureSuccess = { dataUrl: string; h: number; ok: true; w: number };
+export type OpenDesignHostCaptureResult = OpenDesignHostCaptureSuccess | OpenDesignHostFailure;
+
+export type OpenDesignHostBrowserClearDataOptions = {
+  cookies?: boolean;
+  storage?: boolean;
 };
 
 export const OPEN_DESIGN_HOST_UPDATER_ACTIONS = Object.freeze({
@@ -221,6 +231,12 @@ export type OpenDesignHostUpdaterResult =
 export type OpenDesignHostUpdaterStatusListener = (status: OpenDesignHostUpdaterStatusSnapshot) => void;
 
 export type OpenDesignHostBridge = {
+  browser: {
+    clearData(options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult>;
+  };
+  capture: {
+    page(options?: OpenDesignHostCaptureOptions): Promise<OpenDesignHostCaptureResult>;
+  };
   client: OpenDesignHostClient;
   pdf: {
     print(html: string, nonce?: string, options?: OpenDesignHostPdfPrintOptions): Promise<OpenDesignHostActionResult>;
@@ -280,6 +296,12 @@ export function isOpenDesignHostBridge(value: unknown): value is OpenDesignHostB
 
   const shell = value.shell;
   if (!isRecord(shell) || !hasFunction(shell, "openExternal") || !hasFunction(shell, "openPath")) return false;
+
+  const browser = value.browser;
+  if (!isRecord(browser) || !hasFunction(browser, "clearData")) return false;
+
+  const capture = value.capture;
+  if (!isRecord(capture) || !hasFunction(capture, "page")) return false;
 
   const project = value.project;
   if (
@@ -442,6 +464,32 @@ export async function openHostProjectPath(projectId: string, scope: OpenDesignHo
   if (host == null) return unavailable("Open Design host is not available");
   try {
     return await host.shell.openPath(projectId);
+  } catch (error) {
+    return unavailable(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function clearHostBrowserData(
+  options?: OpenDesignHostBrowserClearDataOptions,
+  scope: OpenDesignHostGlobalScope = globalThis,
+): Promise<OpenDesignHostActionResult> {
+  const host = getOpenDesignHost(scope);
+  if (host == null) return unavailable("Open Design host is not available");
+  try {
+    return await host.browser.clearData(options);
+  } catch (error) {
+    return unavailable(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function captureHostPage(
+  options?: OpenDesignHostCaptureOptions,
+  scope: OpenDesignHostGlobalScope = globalThis,
+): Promise<OpenDesignHostCaptureResult> {
+  const host = getOpenDesignHost(scope);
+  if (host == null) return unavailable("Open Design host is not available");
+  try {
+    return await host.capture.page(options);
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : String(error));
   }
