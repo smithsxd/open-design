@@ -11,6 +11,10 @@ import {
   type AnalyticsConfigureGlobals,
 } from '@open-design/contracts/analytics';
 import { scrubBeforeSend } from './scrub';
+import {
+  clearExceptionTrackingContext,
+  setExceptionTrackingContext,
+} from './error-tracking';
 
 interface AnalyticsContext {
   anonymousId: string;
@@ -85,6 +89,50 @@ export function setConfigureGlobals(next: AnalyticsConfigureGlobals): void {
   }
 }
 
+// Fetches `/api/analytics/config` once and wires up the exception-tracking
+// module's context — independent of consent state. The error tracker
+// installs its `window.error` / `unhandledrejection` listeners at module
+// load (see `error-tracking.ts`), but cannot dispatch buffered events
+// until it has the PostHog `phc_` key + host + distinct_id. This bootstrap
+// step provides those.
+//
+// Runs in parallel with — and unrelated to — `getAnalyticsClient` above.
+// When the user has consented, both paths fetch the same endpoint once
+// each; the duplicate fetch is cheap and avoids cross-coupling the
+// (consent-gated) analytics init with the (always-on) error tracker.
+let exceptionBootstrapPromise: Promise<void> | null = null;
+export function bootstrapExceptionTracking(context: AnalyticsContext): Promise<void> {
+  if (exceptionBootstrapPromise) return exceptionBootstrapPromise;
+  exceptionBootstrapPromise = (async () => {
+    try {
+      const res = await fetch('/api/analytics/config');
+      if (!res.ok) {
+        clearExceptionTrackingContext();
+        return;
+      }
+      const cfg = (await res.json()) as AnalyticsConfigResponse;
+      if (!cfg.key || !cfg.host) {
+        clearExceptionTrackingContext();
+        return;
+      }
+      const distinctId =
+        (typeof cfg.installationId === 'string' && cfg.installationId) ||
+        context.anonymousId;
+      setExceptionTrackingContext({
+        apiKey: cfg.key,
+        host: cfg.host,
+        distinctId,
+        appVersion: context.appVersion,
+        sessionId: context.sessionId,
+      });
+    } catch {
+      // Network failure / endpoint unavailable — leave the buffer in
+      // place so a future retry could still flush, but don't crash boot.
+    }
+  })();
+  return exceptionBootstrapPromise;
+}
+
 export async function getAnalyticsClient(
   context: AnalyticsContext,
 ): Promise<PostHog | null> {
@@ -109,7 +157,9 @@ export async function getAnalyticsClient(
       resolvedDeviceId = distinctId;
       const mod = await import('posthog-js');
       const posthog = mod.default;
-      posthog.init(cfg.key, {
+      const cfgKey = cfg.key;
+      const cfgHost = cfg.host;
+      posthog.init(cfgKey, {
         api_host: cfg.host,
         // Identify by installationId when present so daemon-side captures
         // (which also key off installationId via the analytics context
@@ -140,7 +190,12 @@ export async function getAnalyticsClient(
           web_vitals: true,
           network_timing: true,
         },
-        capture_exceptions: true,
+        // Exception capture is owned by `apps/web/src/analytics/error-tracking.ts`,
+        // which runs unconditionally — outside this consent gate, before
+        // posthog-js loads, and via a direct ingest fetch. Letting posthog-js
+        // also autocapture exceptions would only produce duplicates server-side
+        // (the $insert_id dedupe runs but it's still wasted ingest cost).
+        capture_exceptions: false,
 
         // --- Privacy defenses -----------------------------------------
         // 1. scrub.ts runs on every outgoing event and strips $el_text
@@ -157,13 +212,42 @@ export async function getAnalyticsClient(
         //    on scrub.ts.
         before_send: scrubBeforeSend,
 
-        // --- Explicitly disabled --------------------------------------
+        // --- Session replay (privacy-masked) --------------------------
         // Session replay captures the user's entire screen. For a tool
         // where prompts, generated artifacts, and provider API keys are
-        // all visible in DOM, this needs an extensive mask catalogue
-        // before we can satisfy the CSV's no-prompt-content rule. Off
-        // until a dedicated consent surface ships.
-        disable_session_recording: true,
+        // all visible in DOM, recording the raw screen would violate the
+        // CSV's no-prompt-content rule. Rather than gate replay behind a
+        // separate consent surface, we record only layout + interaction
+        // and over-redact every content surface — the same
+        // "redact-by-default, single audit point" philosophy scrub.ts
+        // uses for events (see scrub.ts header). Replay stays gated by the
+        // existing Privacy → "Share usage data" consent: posthog-js's
+        // global opt_out_capturing() halts replay too (see applyConsent()).
+        //
+        // The three redaction layers, in order of how much they cover:
+        //   1. maskTextSelector '*' masks EVERY text node into asterisks,
+        //      so prompts, generated artifact text, provider/model names,
+        //      project titles, and any future text surface never appear in
+        //      a replay. A new sensitive surface is covered automatically.
+        //   2. maskAllInputs masks every <input>/<textarea> value, so the
+        //      prompt composer and BYOK provider-key fields are blanked
+        //      even though only the composer carries `ph-no-capture`.
+        //   3. blockSelector 'iframe' fully blocks every embedded frame.
+        //      The artifact/preview FileViewer iframes (and plugin embeds)
+        //      render generated HTML that can contain anything; rrweb would
+        //      otherwise serialize same-origin/srcDoc frame DOM into the
+        //      recording. They render as an inert placeholder instead.
+        // `ph-no-capture` remains posthog-js's default replay block class,
+        // so the composer subtree stays blocked as defense in depth.
+        disable_session_recording: false,
+        session_recording: {
+          maskAllInputs: true,
+          maskTextSelector: '*',
+          blockSelector: 'iframe',
+          // Don't reach into cross-origin frames either — belt and braces
+          // alongside blockSelector for the URL-load artifact iframe.
+          recordCrossOriginIframes: false,
+        },
 
         loaded: (instance) => {
           lastRegisterPayload = {
@@ -179,6 +263,18 @@ export async function getAnalyticsClient(
             ...(configureGlobals as unknown as Record<string, unknown>),
           };
           instance.register(lastRegisterPayload);
+          // Re-bridge the error-tracking context once posthog-js is fully
+          // initialized. `bootstrapExceptionTracking` may have already
+          // wired this up at app boot via its own fetch; this duplicate
+          // assignment is harmless (same key/host) but ensures the most
+          // up-to-date appVersion / sessionId metadata is attached.
+          setExceptionTrackingContext({
+            apiKey: cfgKey,
+            host: cfgHost,
+            distinctId,
+            appVersion: context.appVersion,
+            sessionId: context.sessionId,
+          });
         },
       });
       client = posthog;

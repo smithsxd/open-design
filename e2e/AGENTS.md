@@ -11,7 +11,8 @@ For the current coverage posture, recent hardening work, grouped-run status, and
 - `ui/`: flat Playwright UI automation test files only. Keep helpers, resources, and non-Playwright harnesses out of this directory.
 - `resources/`: declarative resources for e2e suites, such as Playwright UI scenario lists.
 - `lib/fake-agents.ts`: shared fake local agent CLI harness used by UI and pure-inspect daemon specs.
-- `lib/shared.ts`: tiny cross-suite shared helpers only.
+- `lib/timeouts.ts`: CI-scaled timeout constants (`T.short`, `T.medium`, `T.long`, `T.xlong`). Import as `{ T }` from `@/timeouts`. Use these instead of hardcoded millisecond values in UI tests.
+- `lib/playwright/mock-factory.ts`: shared Playwright mock helpers. `applyStandardMocks(page)` seeds localStorage and intercepts `/api/agents` and `/api/app-config` with standard daemon/mock-agent fixtures. Use in `beforeEach` for tests that do not need a custom agent or protocol setup.
 - `lib/vitest/`: Vitest-specific atomic helpers only. Helpers describe actions such as namespace lifecycle, mock servers, HTTP calls, tools-dev commands, inspect, logs, and reports; they should not hide core business scenario decisions.
 - `lib/vitest/report.ts`: the report boundary. Specs save curated output through `report.save(<relpath>, <blob>)` or `report.json(<relpath>, value)`; release workflows should consume only the final report path, not its internal file layout.
 - `createSmokeSuite(...).with.*`: suite-owned lifecycle composition. Prefer this shape for namespace-bound resources such as `suite.with.toolsDev(...)` so specs keep business workflow code in the foreground.
@@ -48,6 +49,10 @@ pnpm test specs/mac.spec.ts
 pnpm test tests/tools-dev/inspect.test.ts
 pnpm test specs
 pnpm test tests
+pnpm test:p0
+pnpm test:p0p1
+pnpm test:ui:p0
+pnpm test:ui:p0p1
 pnpm typecheck
 pnpm exec tsx scripts/playwright.ts clean
 pnpm exec playwright test -c playwright.config.ts --list
@@ -55,3 +60,5 @@ pnpm exec playwright test -c playwright.config.ts
 ```
 
 Use a specific file path when validating a single case. Do not add root e2e aliases or extra package scripts for individual cases.
+
+Case-level priority tags use test-name prefixes: `[P0]`, `[P1]`, `[P2]`.

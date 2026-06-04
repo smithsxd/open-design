@@ -6,18 +6,19 @@
 // the UI can stay rendered when the daemon is briefly unreachable.
 
 import type {
-  ApiError,
   AppliedPluginSnapshot,
   ApplyResult,
+  ChatSessionMode,
+  CreateConversationRequest,
   CreatePluginShareProjectResponse,
-  HandoffRequest,
-  HandoffResponse,
+  CreateTerminalRequest,
   ImportFolderRequest,
   ImportFolderResponse,
   InstalledPluginRecord,
   PluginInstallOutcome,
   PluginShareAction,
   ProjectPluginFolderInstallRequest,
+  TerminalSession,
 } from '@open-design/contracts';
 import { randomUUID } from '../utils/uuid';
 import type {
@@ -56,10 +57,12 @@ export async function getProject(id: string): Promise<Project | null> {
 
 export async function createProject(input: {
   name: string;
+  projectLocationId?: string;
   skillId: string | null;
   designSystemId: string | null;
   pendingPrompt?: string;
   metadata?: ProjectMetadata;
+  conversationMode?: ChatSessionMode;
   // Plan §3.A1 / spec §11.5 — POST /api/projects accepts a pluginId
   // (or pre-applied snapshot id) to resolve and pin a plugin to the new
   // project. Used by the PluginLoopHome flow on Home.
@@ -112,23 +115,28 @@ export async function importFolderProject(
 
 export async function importClaudeDesignZip(
   file: File,
-): Promise<{ project: Project; conversationId: string; entryFile: string } | null> {
-  try {
-    const form = new FormData();
-    form.append('file', file);
-    const resp = await fetch('/api/import/claude-design', {
-      method: 'POST',
-      body: form,
-    });
-    if (!resp.ok) return null;
-    return (await resp.json()) as {
-      project: Project;
-      conversationId: string;
-      entryFile: string;
-    };
-  } catch {
-    return null;
+): Promise<{ project: Project; conversationId: string; entryFile: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  const resp = await fetch('/api/import/claude-design', {
+    method: 'POST',
+    body: form,
+  });
+  if (!resp.ok) {
+    const payload = await resp.json().catch(() => null);
+    const message =
+      payload != null &&
+      typeof payload === 'object' &&
+      typeof (payload as { error?: unknown }).error === 'string'
+        ? (payload as { error: string }).error
+        : `Import failed (${resp.status})`;
+    throw new Error(message);
   }
+  return (await resp.json()) as {
+    project: Project;
+    conversationId: string;
+    entryFile: string;
+  };
 }
 
 // ---------- templates ----------
@@ -239,57 +247,37 @@ export async function listConversations(
 export async function createConversation(
   projectId: string,
   title?: string,
+  // Side Chat: seed the new conversation with another conversation's context
+  // by copying its messages. `forkAfterMessageId` narrows that copy to a
+  // specific point in the source history.
+  opts?: {
+    seedFromConversationId?: string | null;
+    forkAfterMessageId?: string | null;
+    sessionMode?: ChatSessionMode;
+  },
 ): Promise<Conversation | null> {
   try {
+    const body: CreateConversationRequest = { title };
+    if (opts?.sessionMode) {
+      body.sessionMode = opts.sessionMode;
+    }
+    if (opts?.seedFromConversationId) {
+      body.seedFromConversationId = opts.seedFromConversationId;
+    }
+    if (opts?.forkAfterMessageId) {
+      body.forkAfterMessageId = opts.forkAfterMessageId;
+    }
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      },
-    );
-    if (!resp.ok) return null;
-    const json = (await resp.json()) as { conversation: Conversation };
-    return json.conversation;
-  } catch {
-    return null;
-  }
-}
-
-// Outcome of a handoff synthesis call. The daemon route classifies its
-// failures (RATE_LIMITED, EMPTY_TRANSCRIPT, an upstream 400 with provider
-// detail, ...); `{ error }` carries that structured error through so the
-// caller can show the real reason instead of a generic message. `null`
-// is reserved for a transport failure or an unparseable error body.
-export type HandoffOutcome = HandoffResponse | { error: ApiError } | null;
-
-// Synthesizes a self-contained "first user message" from the project's
-// chat transcript so a fresh conversation can resume work without the
-// user replaying context by hand. A transport failure returns null; a
-// daemon-classified failure returns `{ error }` so the caller keeps the
-// daemon's message/details rather than collapsing every case into one
-// generic toast.
-export async function synthesizeHandoff(
-  projectId: string,
-  body: HandoffRequest,
-): Promise<HandoffOutcome> {
-  try {
-    const resp = await fetch(
-      `/api/projects/${encodeURIComponent(projectId)}/handoff`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
     );
-    if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: ApiError }
-        | null;
-      return payload?.error ? { error: payload.error } : null;
-    }
-    return (await resp.json()) as HandoffResponse;
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { conversation: Conversation };
+    return json.conversation;
   } catch {
     return null;
   }
@@ -352,6 +340,11 @@ export async function listMessages(
 
 export interface SaveMessageOptions {
   telemetryFinalized?: boolean;
+  // Set during page-unload paths (pagehide / visibilitychange→hidden) so
+  // the in-flight PUT survives even if the document tears down before the
+  // response arrives. Without keepalive the browser cancels the fetch
+  // and the daemon never sees the final buffered text chunk.
+  keepalive?: boolean;
 }
 
 export async function saveMessage(
@@ -370,6 +363,7 @@ export async function saveMessage(
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        ...(options.keepalive ? { keepalive: true } : {}),
       },
     );
   } catch {
@@ -377,17 +371,197 @@ export async function saveMessage(
   }
 }
 
+// ---------- terminals ----------
+//
+// Interactive PTY sessions rooted at the project working directory. The daemon
+// streams output down over SSE (`GET .../stream`) and accepts keystrokes /
+// resizes back up over plain POST — see `packages/contracts/src/api/terminals.ts`.
+// `<TerminalViewer>` drives `terminalStreamUrl` directly via EventSource; these
+// helpers cover the request/response endpoints.
+
+export async function createTerminal(
+  projectId: string,
+  init?: CreateTerminalRequest,
+): Promise<TerminalSession | null> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/terminals`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(init ?? {}),
+      },
+    );
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { terminal: TerminalSession };
+    return json.terminal ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** SSE endpoint a `<TerminalViewer>` subscribes to for raw PTY output. */
+export function terminalStreamUrl(projectId: string, terminalId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/terminals/${encodeURIComponent(terminalId)}/stream`;
+}
+
+export async function sendTerminalStdin(
+  projectId: string,
+  terminalId: string,
+  data: string,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/terminals/${encodeURIComponent(terminalId)}/stdin`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+      },
+    );
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function resizeTerminal(
+  projectId: string,
+  terminalId: string,
+  cols: number,
+  rows: number,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/terminals/${encodeURIComponent(terminalId)}/resize`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cols, rows }),
+      },
+    );
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function killTerminal(
+  projectId: string,
+  terminalId: string,
+  // Page-unload paths set keepalive so the kill survives document teardown,
+  // mirroring `saveMessage`. Without it the browser cancels the fetch and the
+  // PTY leaks until the daemon GCs it.
+  options: { keepalive?: boolean } = {},
+): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/terminals/${encodeURIComponent(terminalId)}/kill`,
+      {
+        method: 'POST',
+        ...(options.keepalive ? { keepalive: true } : {}),
+      },
+    );
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ---------- tabs ----------
 
+const PROJECT_TABS_CACHE_PREFIX = 'open-design:project-tabs:v1:';
+
+function tabsCacheKey(projectId: string): string {
+  return `${PROJECT_TABS_CACHE_PREFIX}${projectId}`;
+}
+
+function normalizeTabsState(value: unknown): OpenTabsState | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.tabs) || !record.tabs.every((tab) => typeof tab === 'string')) {
+    return null;
+  }
+  const browserTabs = Array.isArray(record.browserTabs)
+    ? record.browserTabs.filter(
+        (tab) =>
+          Boolean(tab) &&
+          typeof tab === 'object' &&
+          !Array.isArray(tab) &&
+          typeof (tab as Record<string, unknown>).id === 'string' &&
+          typeof (tab as Record<string, unknown>).label === 'string',
+      ) as OpenTabsState['browserTabs']
+    : undefined;
+  const state: OpenTabsState = {
+    tabs: record.tabs.slice() as string[],
+    active: typeof record.active === 'string' ? record.active : null,
+  };
+  if (browserTabs && browserTabs.length > 0) state.browserTabs = browserTabs;
+  if (record.hasSavedState === true) state.hasSavedState = true;
+  if (typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt)) {
+    state.updatedAt = record.updatedAt;
+  }
+  return state;
+}
+
+function readCachedTabs(projectId: string): OpenTabsState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return normalizeTabsState(JSON.parse(window.localStorage.getItem(tabsCacheKey(projectId)) ?? 'null'));
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTabs(projectId: string, state: OpenTabsState): OpenTabsState {
+  const next: OpenTabsState = {
+    ...state,
+    updatedAt: Date.now(),
+  };
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(tabsCacheKey(projectId), JSON.stringify(next));
+    } catch {
+      // Ignore quota/private-mode failures. The daemon save below is canonical.
+    }
+  }
+  return next;
+}
+
+function newestTabsState(
+  first: OpenTabsState | null,
+  second: OpenTabsState | null,
+): OpenTabsState {
+  if (!first && !second) return { tabs: [], active: null };
+  if (!first) return second!;
+  if (!second) return first;
+  return (second.updatedAt ?? 0) > (first.updatedAt ?? 0) ? second : first;
+}
+
+async function persistTabsToDaemon(projectId: string, state: OpenTabsState): Promise<void> {
+  await fetch(`/api/projects/${encodeURIComponent(projectId)}/tabs`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state),
+    keepalive: true,
+  });
+}
+
 export async function loadTabs(projectId: string): Promise<OpenTabsState> {
+  const cached = readCachedTabs(projectId);
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/tabs`,
     );
-    if (!resp.ok) return { tabs: [], active: null };
-    return (await resp.json()) as OpenTabsState;
+    if (!resp.ok) return cached ?? { tabs: [], active: null };
+    const saved = normalizeTabsState(await resp.json());
+    const latest = newestTabsState(cached, saved);
+    if (cached && latest === cached && (cached.updatedAt ?? 0) > (saved?.updatedAt ?? 0)) {
+      void persistTabsToDaemon(projectId, cached).catch(() => {});
+    }
+    return latest;
   } catch {
-    return { tabs: [], active: null };
+    return cached ?? { tabs: [], active: null };
   }
 }
 
@@ -395,14 +569,35 @@ export async function saveTabs(
   projectId: string,
   state: OpenTabsState,
 ): Promise<void> {
+  const next = writeCachedTabs(projectId, state);
   try {
-    await fetch(`/api/projects/${encodeURIComponent(projectId)}/tabs`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
-    });
+    await persistTabsToDaemon(projectId, next);
   } catch {
     // best-effort
+  }
+}
+
+/**
+ * Write tab state to the local cache ONLY (synchronous localStorage), returning
+ * the `updatedAt`-stamped state. Callers that debounce the canonical daemon
+ * write use this so the cache is always current — `loadTabs` reconciles cache
+ * vs daemon by `updatedAt`, so a debounced (or dropped) daemon PUT never loses
+ * data: a newer cache is re-pushed on next load.
+ */
+export function cacheTabsLocally(projectId: string, state: OpenTabsState): OpenTabsState {
+  return writeCachedTabs(projectId, state);
+}
+
+/** Persist already-stamped tab state to the daemon (the debounced write). */
+export async function persistTabsToDaemonNow(
+  projectId: string,
+  state: OpenTabsState,
+): Promise<void> {
+  try {
+    await persistTabsToDaemon(projectId, state);
+  } catch {
+    // best-effort; the local cache (written via cacheTabsLocally) is canonical
+    // and will re-push on the next loadTabs reconciliation.
   }
 }
 
@@ -550,6 +745,39 @@ export interface PluginShareOutcome {
   code?: string;
 }
 
+export interface PluginShareTaskStart {
+  taskId: string;
+  action: 'publish-github' | 'contribute-open-design';
+  path: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  startedAt: number;
+}
+
+export interface PluginShareTaskResult {
+  message: string;
+  url?: string;
+  log?: string[];
+}
+
+export interface PluginShareTaskError {
+  message: string;
+  code?: string;
+  log?: string[];
+}
+
+export interface PluginShareTaskSnapshot {
+  taskId: string;
+  action: 'publish-github' | 'contribute-open-design';
+  path: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  startedAt: number;
+  endedAt?: number | null;
+  progress: string[];
+  nextSince: number;
+  result?: PluginShareTaskResult;
+  error?: PluginShareTaskError;
+}
+
 export async function publishGeneratedPluginToGitHub(
   projectId: string,
   relativePath: string,
@@ -562,6 +790,63 @@ export async function contributeGeneratedPluginToOpenDesign(
   relativePath: string,
 ): Promise<PluginShareOutcome> {
   return postGeneratedPluginShareAction(projectId, relativePath, 'contribute-open-design');
+}
+
+export async function startGeneratedPluginShareTask(
+  projectId: string,
+  relativePath: string,
+  action: 'publish-github' | 'contribute-open-design',
+): Promise<PluginShareTaskStart> {
+  const resp = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/plugins/share-tasks`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: relativePath, action }),
+    },
+  );
+  const body = await resp.json().catch(() => null) as Partial<PluginShareTaskStart> & {
+    error?: string | { message?: string };
+    message?: string;
+  } | null;
+  if (!resp.ok || !body?.taskId || !body?.action || !body?.path || !body?.status || !body?.startedAt) {
+    const errorMessage =
+      body?.message
+      ?? (typeof body?.error === 'string' ? body.error : body?.error?.message)
+      ?? 'Could not start plugin share task.';
+    throw new Error(errorMessage);
+  }
+  return {
+    taskId: body.taskId,
+    action: body.action,
+    path: body.path,
+    status: body.status,
+    startedAt: body.startedAt,
+  };
+}
+
+export async function waitGeneratedPluginShareTask(
+  taskId: string,
+  since: number,
+  timeoutMs = 25_000,
+): Promise<PluginShareTaskSnapshot> {
+  const resp = await fetch(`/api/plugins/share-tasks/${encodeURIComponent(taskId)}/wait`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ since, timeoutMs }),
+  });
+  const body = await resp.json().catch(() => null) as PluginShareTaskSnapshot & {
+    error?: string | { message?: string };
+    message?: string;
+  } | null;
+  if (!resp.ok || !body?.taskId) {
+    const errorMessage =
+      body?.message
+      ?? (typeof body?.error === 'string' ? body.error : body?.error?.message)
+      ?? 'Could not fetch plugin share task.';
+    throw new Error(errorMessage);
+  }
+  return body;
 }
 
 export type PluginShareProjectOutcome =

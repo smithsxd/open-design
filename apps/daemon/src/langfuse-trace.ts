@@ -19,6 +19,13 @@
 import { randomUUID } from 'node:crypto';
 
 import type { TelemetryPrefs } from './app-config.js';
+import {
+  buildPromptStackFlatMetadata,
+  promptStackWithoutContent,
+  type PromptStackTelemetry,
+} from './prompt-telemetry.js';
+import type { RunTimingAnalytics } from './run-analytics-observability.js';
+import type { RunFailureClassification } from './run-failure-classification.js';
 
 // Langfuse US region: confirmed by an end-to-end smoke on 2026-05-07 — the
 // project's keys authenticate against `us.cloud.langfuse.com` only. EU host
@@ -44,6 +51,30 @@ export interface LangfuseConfig {
   retries: number;
 }
 
+export type LangfuseDeliveryStatus =
+  | 'not_expected'
+  | 'queued'
+  | 'accepted'
+  | 'failed';
+
+export type LangfuseDropReason =
+  | 'metrics_consent_off'
+  | 'content_consent_off'
+  | 'missing_sink_config'
+  | 'payload_too_large'
+  | 'relay_429'
+  | 'relay_413'
+  | 'relay_5xx'
+  | 'langfuse_4xx'
+  | 'langfuse_5xx'
+  | 'network_error';
+
+export interface LangfuseDeliveryState {
+  langfuse_expected: boolean;
+  langfuse_delivery_status: LangfuseDeliveryStatus;
+  langfuse_drop_reason?: LangfuseDropReason;
+}
+
 export type TelemetrySinkConfig =
   | {
       kind: 'relay';
@@ -61,6 +92,14 @@ export interface RunSummary {
   startedAt: number;
   endedAt: number;
   error?: string;
+  errorCode?: string;
+  failure?: RunFailureClassification;
+  timings?: RunTimingAnalytics;
+  stderr?: {
+    tail: string;
+    lineCount: number;
+    truncated: boolean;
+  };
 }
 
 export interface MessageSummary {
@@ -69,8 +108,16 @@ export interface MessageSummary {
   output: string;
   usage?: {
     inputTokens?: number;
+    inputTokensProvider?: number;
+    inputTokensEffective?: number;
     outputTokens?: number;
     totalTokens?: number;
+    cacheReadInputTokens?: number;
+    cacheCreationInputTokens?: number;
+    uncachedInputTokens?: number;
+    estimatedContextTokens?: number;
+    cacheHitRatio?: number;
+    cacheTokenSource?: 'anthropic' | 'openai' | 'unavailable';
   };
 }
 
@@ -139,16 +186,42 @@ export interface ReportContext {
   tools?: ToolCallSummary[];
   eventsSummary: EventsSummary;
   prefs: TelemetryPrefs;
+  langfuse?: LangfuseDeliveryState;
   /** Per-turn config (model + skill + DS). May vary turn-to-turn within a session. */
   turn?: TurnInfo;
   /** Process- / build-level info collected once per daemon process. */
   runtime?: RuntimeInfo;
+  /** Redacted section-level prompt diagnostics captured before agent spawn. */
+  promptTelemetry?: PromptStackTelemetry;
   extraTags?: string[];
 }
 
 export interface ReportRunOpts {
   config?: TelemetrySinkConfig | LangfuseConfig | null;
   fetchImpl?: typeof fetch;
+}
+
+/**
+ * Payload sent to Langfuse when a user thumbs-up/down's an assistant turn.
+ *
+ * The `runId` doubles as the Langfuse trace id (same convention used by
+ * buildTracePayload), so the score lands on the existing trace if the run
+ * was previously reported. If the run wasn't reported (e.g. content
+ * consent was off at run completion, then turned on before the user
+ * scored), Langfuse will accept the score anyway and the trace will
+ * materialize when/if the daemon backfills it.
+ */
+export interface FeedbackReportContext {
+  runId: string;
+  installationId: string | null;
+  prefs: TelemetryPrefs;
+  rating: 'positive' | 'negative';
+  reasonCodes: string[];
+  /** Raw "other" free text the user typed. Trimmed; empty string when absent. */
+  customReason: string;
+  hasCustomReason: boolean;
+  /** Optional context bag that ends up in Langfuse score metadata. */
+  metadata?: Record<string, unknown>;
 }
 
 export function readLangfuseConfig(
@@ -202,6 +275,37 @@ export function readTelemetrySinkConfig(
   return config == null ? null : { kind: 'langfuse', ...config };
 }
 
+export function deriveLangfuseDeliveryState(
+  prefs: TelemetryPrefs,
+  sink: TelemetrySinkConfig | null,
+): LangfuseDeliveryState {
+  if (prefs.metrics !== true) {
+    return {
+      langfuse_expected: false,
+      langfuse_delivery_status: 'not_expected',
+      langfuse_drop_reason: 'metrics_consent_off',
+    };
+  }
+  if (prefs.content !== true) {
+    return {
+      langfuse_expected: false,
+      langfuse_delivery_status: 'not_expected',
+      langfuse_drop_reason: 'content_consent_off',
+    };
+  }
+  if (!sink) {
+    return {
+      langfuse_expected: false,
+      langfuse_delivery_status: 'not_expected',
+      langfuse_drop_reason: 'missing_sink_config',
+    };
+  }
+  return {
+    langfuse_expected: true,
+    langfuse_delivery_status: 'queued',
+  };
+}
+
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   const parsed = Number.parseInt(value, 10);
@@ -246,7 +350,7 @@ function buildTagList(ctx: ReportContext): string[] {
 }
 
 export function buildTracePayload(ctx: ReportContext): unknown[] {
-  const wantsContent = ctx.prefs.content === true;
+  const wantsContent = ctx.prefs.metrics === true && ctx.prefs.content === true;
   const wantsArtifacts = ctx.prefs.artifactManifest === true;
 
   const sessionId =
@@ -274,14 +378,22 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
   const tokens = ctx.message.usage
     ? {
         input: ctx.message.usage.inputTokens,
+        inputProvider: ctx.message.usage.inputTokensProvider,
+        inputEffective: ctx.message.usage.inputTokensEffective,
         output: ctx.message.usage.outputTokens,
         total: ctx.message.usage.totalTokens,
+        cacheReadInput: ctx.message.usage.cacheReadInputTokens,
+        cacheCreationInput: ctx.message.usage.cacheCreationInputTokens,
+        uncachedInput: ctx.message.usage.uncachedInputTokens,
+        estimatedContext: ctx.message.usage.estimatedContextTokens,
+        cacheHitRatio: ctx.message.usage.cacheHitRatio,
+        cacheTokenSource: ctx.message.usage.cacheTokenSource,
       }
     : undefined;
 
   const usage = ctx.message.usage
     ? {
-        input: ctx.message.usage.inputTokens,
+        input: ctx.message.usage.inputTokensEffective ?? ctx.message.usage.inputTokens,
         output: ctx.message.usage.outputTokens,
         total: ctx.message.usage.totalTokens,
         unit: 'TOKENS' as const,
@@ -290,8 +402,18 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
 
   const success = ctx.run.status === 'succeeded';
   const traceId = ctx.run.runId;
+  const langfuseDelivery =
+    ctx.langfuse ?? deriveLangfuseDeliveryState(ctx.prefs, readTelemetrySinkConfig());
   const agentSpanId = `${ctx.run.runId}-agent`;
   const generationId = `${ctx.run.runId}-gen`;
+  const promptStack = ctx.promptTelemetry
+    ? wantsContent
+      ? ctx.promptTelemetry
+      : promptStackWithoutContent(ctx.promptTelemetry)
+    : undefined;
+  const promptStackFlatMetadata = promptStack
+    ? buildPromptStackFlatMetadata(promptStack)
+    : {};
 
   // Trace metadata is the queryable + exportable fact-sheet for each turn.
   // Anything we want to slice on for evals or dataset construction lives
@@ -301,6 +423,12 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
     success,
     status: ctx.run.status,
     error: ctx.run.error ?? undefined,
+    error_code: ctx.run.errorCode,
+    langfuse_trace_id: traceId,
+    ...langfuseDelivery,
+    ...(ctx.run.failure ?? {}),
+    ...(ctx.run.timings ?? {}),
+    stderr: ctx.run.stderr,
     eventsSummary: ctx.eventsSummary,
     tokens,
     artifacts: artifactsList,
@@ -319,6 +447,8 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
     osRelease: ctx.runtime?.osRelease,
     arch: ctx.runtime?.arch,
     clientType: ctx.runtime?.clientType,
+    promptStack,
+    ...promptStackFlatMetadata,
   };
 
   // Generation-level model parameters mirror the Langfuse schema so the UI
@@ -389,6 +519,8 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
         usage,
         metadata: {
           durationMs: ctx.eventsSummary.durationMs,
+          promptStack,
+          ...promptStackFlatMetadata,
         },
       },
     },
@@ -478,7 +610,7 @@ async function postLangfuseBatch(
   config: LangfuseConfig,
   batch: unknown[],
   fetchImpl: typeof fetch,
-): Promise<void> {
+): Promise<LangfuseDeliveryState> {
   const attempts = config.retries + 1;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -503,7 +635,14 @@ async function postLangfuseBatch(
         console.warn(
           `[langfuse-trace] Ingestion failed ${response.status}: ${body.slice(0, 200)}`,
         );
-        return;
+        return {
+          langfuse_expected: true,
+          langfuse_delivery_status: 'failed',
+          langfuse_drop_reason: ingestionDropReasonFromStatus(
+            response.status,
+            'langfuse',
+          ),
+        };
       }
       // Langfuse legacy ingestion responds with HTTP 207 Multi-Status whose
       // body shape is `{ successes: [...], errors: [...] }`. `response.ok`
@@ -511,25 +650,42 @@ async function postLangfuseBatch(
       // we look at the body. Surface them so a malformed payload doesn't
       // silently disappear server-side.
       const body = await response.text().catch(() => '');
-      if (!body) return;
-      warnPerEventErrors(body, 'Per-event errors');
-      return;
+      if (body && warnPerEventErrors(body, 'Per-event errors')) {
+        return {
+          langfuse_expected: true,
+          langfuse_delivery_status: 'failed',
+          langfuse_drop_reason: dropReasonFromPerEventErrors(body, 'langfuse'),
+        };
+      }
+      return {
+        langfuse_expected: true,
+        langfuse_delivery_status: 'accepted',
+      };
     } catch (error) {
       if (attempt < attempts) {
         await waitBeforeRetry(attempt);
         continue;
       }
       console.warn(`[langfuse-trace] Fetch error: ${String(error)}`);
-      return;
+      return {
+        langfuse_expected: true,
+        langfuse_delivery_status: 'failed',
+        langfuse_drop_reason: 'network_error',
+      };
     }
   }
+  return {
+    langfuse_expected: true,
+    langfuse_delivery_status: 'failed',
+    langfuse_drop_reason: 'network_error',
+  };
 }
 
 async function postRelayBatch(
   config: Extract<TelemetrySinkConfig, { kind: 'relay' }>,
   body: string,
   fetchImpl: typeof fetch,
-): Promise<void> {
+): Promise<LangfuseDeliveryState> {
   const attempts = config.retries + 1;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -554,22 +710,52 @@ async function postRelayBatch(
         console.warn(
           `[langfuse-trace] Relay failed ${response.status}: ${responseBody.slice(0, 200)}`,
         );
-        return;
+        return {
+          langfuse_expected: true,
+          langfuse_delivery_status: 'failed',
+          langfuse_drop_reason: ingestionDropReasonFromStatus(
+            response.status,
+            'relay',
+          ),
+        };
       }
 
       const responseBody = await response.text().catch(() => '');
-      if (!responseBody) return;
-      warnPerEventErrors(responseBody, 'Relay per-event errors');
-      return;
+      if (
+        responseBody &&
+        warnPerEventErrors(responseBody, 'Relay per-event errors')
+      ) {
+        return {
+          langfuse_expected: true,
+          langfuse_delivery_status: 'failed',
+          langfuse_drop_reason: dropReasonFromPerEventErrors(
+            responseBody,
+            'relay',
+          ),
+        };
+      }
+      return {
+        langfuse_expected: true,
+        langfuse_delivery_status: 'accepted',
+      };
     } catch (error) {
       if (attempt < attempts) {
         await waitBeforeRetry(attempt);
         continue;
       }
       console.warn(`[langfuse-trace] Relay fetch error: ${String(error)}`);
-      return;
+      return {
+        langfuse_expected: true,
+        langfuse_delivery_status: 'failed',
+        langfuse_drop_reason: 'network_error',
+      };
     }
   }
+  return {
+    langfuse_expected: true,
+    langfuse_delivery_status: 'failed',
+    langfuse_drop_reason: 'network_error',
+  };
 }
 
 function waitBeforeRetry(attempt: number): Promise<void> {
@@ -593,12 +779,53 @@ function resolveReportConfig(
   return normalizeTelemetrySinkConfig(opts.config);
 }
 
-function warnPerEventErrors(responseBody: string, label: string): void {
+function ingestionDropReasonFromStatus(
+  status: number,
+  sinkKind: TelemetrySinkConfig['kind'],
+): LangfuseDropReason {
+  if (sinkKind === 'relay') {
+    if (status === 429) return 'relay_429';
+    if (status === 413) return 'relay_413';
+    if (status >= 500) return 'relay_5xx';
+    return 'langfuse_4xx';
+  }
+  if (status >= 500) return 'langfuse_5xx';
+  return 'langfuse_4xx';
+}
+
+function dropReasonFromPerEventErrors(
+  responseBody: string,
+  sinkKind: TelemetrySinkConfig['kind'],
+): LangfuseDropReason {
   let parsed: unknown;
   try {
     parsed = JSON.parse(responseBody);
   } catch {
-    return;
+    return sinkKind === 'relay' ? 'relay_5xx' : 'langfuse_5xx';
+  }
+  const errors =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as { errors?: unknown }).errors
+      : undefined;
+  if (!Array.isArray(errors)) {
+    return sinkKind === 'relay' ? 'relay_5xx' : 'langfuse_5xx';
+  }
+  for (const error of errors) {
+    if (!error || typeof error !== 'object' || Array.isArray(error)) continue;
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === 'number' && Number.isFinite(status)) {
+      return ingestionDropReasonFromStatus(status, sinkKind);
+    }
+  }
+  return sinkKind === 'relay' ? 'relay_5xx' : 'langfuse_4xx';
+}
+
+function warnPerEventErrors(responseBody: string, label: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseBody);
+  } catch {
+    return false;
   }
   const errors =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -608,17 +835,21 @@ function warnPerEventErrors(responseBody: string, label: string): void {
     console.warn(
       `[langfuse-trace] ${label} (${errors.length}): ${JSON.stringify(errors).slice(0, 500)}`,
     );
+    return true;
   }
+  return false;
 }
 
 export async function reportRunCompleted(
   ctx: ReportContext,
   opts: ReportRunOpts = {},
-): Promise<void> {
-  if (ctx.prefs.metrics !== true) return;
-  if (ctx.prefs.content !== true) return;
+): Promise<LangfuseDeliveryState> {
+  const notExpected = deriveLangfuseDeliveryState(ctx.prefs, null);
+  if (ctx.prefs.metrics !== true) return notExpected;
+  if (ctx.prefs.content !== true) return notExpected;
 
   const config = resolveReportConfig(opts);
+  const langfuseDelivery = deriveLangfuseDeliveryState(ctx.prefs, config);
   if (!config) {
     if (!missingTelemetrySinkWarned) {
       // Warn once per daemon process; packaged config is loaded at process
@@ -628,15 +859,19 @@ export async function reportRunCompleted(
         '[langfuse-trace] Telemetry metrics are enabled but no relay or Langfuse credentials are configured',
       );
     }
-    return;
+    return langfuseDelivery;
   }
 
   let batch: unknown[];
   try {
-    batch = buildTracePayload(ctx);
+    batch = buildTracePayload({ ...ctx, langfuse: langfuseDelivery });
   } catch (error) {
     console.warn(`[langfuse-trace] Payload build error: ${String(error)}`);
-    return;
+    return {
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'payload_too_large',
+    };
   }
 
   const serialized = JSON.stringify({ batch });
@@ -647,6 +882,111 @@ export async function reportRunCompleted(
   if (serializedBytes > HARD_BATCH_MAX_BYTES) {
     console.warn(
       `[langfuse-trace] Batch too large (${serializedBytes}B > ${HARD_BATCH_MAX_BYTES}B), dropping trace ${ctx.run.runId}`,
+    );
+    return {
+      langfuse_expected: true,
+      langfuse_delivery_status: 'failed',
+      langfuse_drop_reason: 'payload_too_large',
+    };
+  }
+
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+  if (config.kind === 'relay') {
+    return postRelayBatch(config, serialized, fetchImpl);
+  }
+  return postLangfuseBatch(config, batch, fetchImpl);
+}
+
+// Build a Langfuse `score-create` batch for a user-supplied turn rating.
+//
+// Langfuse scores let evals filter traces by user feedback. We emit one
+// NUMERIC score (`user_rating`, +1 / -1) plus optional CATEGORICAL scores
+// for each reason code, so the Langfuse UI's score filters work out of
+// the box. Raw custom-reason text rides in the score metadata when the
+// user opted into telemetry.content; the consent gate lives in
+// reportRunFeedback below, so this builder stays content-agnostic.
+//
+// Limitation: stable score ids (`${traceId}-rating`, `${traceId}-reason-${code}`)
+// mean re-submission overwrites cleanly, but reason codes the user removes
+// in a follow-up submission do not get a tombstone. A future change can
+// thread `removedReasonCodes` through and emit overwriting "cleared"
+// scores for them; not done here to keep this PR scoped to the bridge.
+export function buildFeedbackPayload(ctx: FeedbackReportContext): unknown[] {
+  const traceId = ctx.runId;
+  const nowIso = new Date().toISOString();
+  const batch: unknown[] = [];
+
+  const ratingMetadata: Record<string, unknown> = {
+    reasonCodes: ctx.reasonCodes,
+    reasonCount: ctx.reasonCodes.length,
+    hasCustomReason: ctx.hasCustomReason,
+    // Raw text — gated upstream by telemetry.content consent.
+    customReason: ctx.customReason || undefined,
+    installationId: ctx.installationId ?? undefined,
+    ...(ctx.metadata ?? {}),
+  };
+
+  batch.push({
+    id: randomUUID(),
+    type: 'score-create',
+    timestamp: nowIso,
+    body: {
+      id: `${traceId}-rating`,
+      traceId,
+      name: 'user_rating',
+      value: ctx.rating === 'positive' ? 1 : -1,
+      dataType: 'NUMERIC',
+      comment: ctx.rating,
+      metadata: ratingMetadata,
+    },
+  });
+
+  for (const code of ctx.reasonCodes) {
+    batch.push({
+      id: randomUUID(),
+      type: 'score-create',
+      timestamp: nowIso,
+      body: {
+        // Stable per (run, code) so re-submission overwrites cleanly.
+        id: `${traceId}-reason-${code}`,
+        traceId,
+        name: 'user_rating_reason',
+        value: code,
+        dataType: 'CATEGORICAL',
+        // Group the reason under the rating it was submitted with so a
+        // "matched_request" tag on a thumbs-down run is still visibly
+        // negative in the Langfuse UI.
+        comment: ctx.rating,
+      },
+    });
+  }
+
+  return batch;
+}
+
+export async function reportRunFeedback(
+  ctx: FeedbackReportContext,
+  opts: ReportRunOpts = {},
+): Promise<void> {
+  if (ctx.prefs.metrics !== true) return;
+  if (ctx.prefs.content !== true) return;
+
+  const config = resolveReportConfig(opts);
+  if (!config) return;
+
+  let batch: unknown[];
+  try {
+    batch = buildFeedbackPayload(ctx);
+  } catch (error) {
+    console.warn(`[langfuse-trace] Feedback payload build error: ${String(error)}`);
+    return;
+  }
+
+  const serialized = JSON.stringify({ batch });
+  const serializedBytes = Buffer.byteLength(serialized, 'utf8');
+  if (serializedBytes > HARD_BATCH_MAX_BYTES) {
+    console.warn(
+      `[langfuse-trace] Feedback batch too large (${serializedBytes}B > ${HARD_BATCH_MAX_BYTES}B), dropping feedback for ${ctx.runId}`,
     );
     return;
   }

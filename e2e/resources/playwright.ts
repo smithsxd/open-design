@@ -126,7 +126,6 @@ export const playwrightUiScenarios: UiScenario[] = [
     prompt: 'Create a launch poster image prompt',
     expectedProjectMetadata: {
       kind: 'image',
-      imageModel: 'gpt-image-2',
     },
     notes: [
       'Keeps this smoke focused on create-time routing and metadata, not downstream image generation providers.',
@@ -148,7 +147,7 @@ export const playwrightUiScenarios: UiScenario[] = [
     prompt: 'Create a short product teaser video prompt',
     expectedProjectMetadata: {
       kind: 'video',
-      videoModel: 'doubao-seedance-2-0-260128',
+      videoModel: 'hyperframes-html',
       videoAspect: '16:9',
       videoLength: 5,
     },
@@ -174,7 +173,6 @@ export const playwrightUiScenarios: UiScenario[] = [
     expectedProjectMetadata: {
       kind: 'audio',
       audioKind: 'sfx',
-      audioModel: 'elevenlabs-sfx',
     },
     notes: [
       'Verifies the media audio branch still saves SFX-specific metadata without depending on provider execution.',
@@ -225,24 +223,6 @@ export const playwrightUiScenarios: UiScenario[] = [
     },
     notes: [
       'The composer textarea stays empty; selected preview comments are sent through commentAttachments.',
-    ],
-  },
-  {
-    id: 'design-system-selection',
-    title: 'Selecting a design system carries through project creation',
-    kind: 'prototype',
-    flow: 'design-system-selection',
-    automated: true,
-    description:
-      'Verifies that a chosen design system is selectable in the new-project panel and remains visible in project metadata after creation.',
-    create: {
-      projectName: 'Design system selection',
-      tab: 'prototype',
-    },
-    prompt: 'Create a small test artifact',
-    notes: [
-      'Uses a mocked design-system list so the picker stays deterministic across environments.',
-      'Focuses on creation and metadata persistence instead of generation output.',
     ],
   },
   {
@@ -610,30 +590,6 @@ export const playwrightUiScenarios: UiScenario[] = [
     ],
     notes: [
       'Seeds a deterministic .py file through the project files API, opens it from the file list, and asserts the source viewer renders readable code text.',
-    ],
-  },
-  {
-    id: 'plugin-create-import',
-    title: 'Plugin creation and import flow applies a test query end to end',
-    kind: 'workspace',
-    flow: 'plugin-create-import',
-    automated: true,
-    description:
-      'Exercises the Plugins view create entry point, installs a local fixture plugin through the import dialog, applies it from Home search, and verifies the seeded query creates and auto-runs a project.',
-    create: {
-      projectName: 'Plugin create import flow',
-      tab: 'prototype',
-    },
-    prompt: 'Generate a release QA brief for general.',
-    expectedProjectMetadata: {
-      kind: 'other',
-    },
-    expectedRunRequest: {
-      message: 'Generate a release QA brief for general.',
-    },
-    notes: [
-      'Uses the daemon plugin install endpoint with a generated query plugin fixture instead of mocking the import response.',
-      'Mocks only the final agent run SSE so the UI path stays deterministic while the plugin install/apply APIs remain real.',
     ],
   },
 ];

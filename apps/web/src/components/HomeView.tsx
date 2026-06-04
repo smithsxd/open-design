@@ -7,9 +7,10 @@
 // surface by lifting its plugin orchestration up here so the prompt
 // textarea can live centered in the hero.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ApplyResult,
+  ChatSessionMode,
   ConnectorDetail,
   InputFieldSpec,
   McpServerConfig,
@@ -36,6 +37,10 @@ import {
 } from '../state/projects';
 import { fetchMcpServers } from '../state/mcp';
 import { useI18n } from '../i18n';
+import {
+  localizeSkillName,
+  localizeSkillPrompt,
+} from '../i18n/content';
 import { fetchElevenLabsVoiceOptions } from '../providers/elevenlabs-voices';
 import { fetchProjectFiles, projectFileUrl } from '../providers/registry';
 import type {
@@ -47,7 +52,7 @@ import type {
   SkillSummary,
 } from '../types';
 import { inlineMentionToken } from '../utils/inlineMentions';
-import { HomeHero } from './HomeHero';
+import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from './HomeHero';
 import { findChip, HOME_HERO_CHIPS, type HomeHeroChip } from './home-hero/chips';
 import {
   buildHomeMediaComposer,
@@ -69,6 +74,7 @@ import type { PluginLoopSubmit } from './PluginLoopHome';
 import type { FacetSelection } from './plugins-home/facets';
 import type { PluginUseAction } from './plugins-home/useActions';
 import { RecentProjectsStrip } from './RecentProjectsStrip';
+import { AnimatePresence } from 'motion/react';
 
 interface ActivePlugin {
   record: InstalledPluginRecord;
@@ -224,7 +230,10 @@ export function HomeView({
   const [pendingPluginUseHandoff, setPendingPluginUseHandoff] =
     useState<PendingPluginUseHandoff | null>(null);
   const [fallbackProjectKind, setFallbackProjectKind] = useState<ProjectKind | null>(null);
+  const [fallbackProjectMetadata, setFallbackProjectMetadata] =
+    useState<ProjectMetadata | null>(null);
   const [active, setActive] = useState<ActivePlugin | null>(null);
+  const [sessionMode, setSessionMode] = useState<ChatSessionMode>('design');
   const [activeSkill, setActiveSkill] = useState<SkillSummary | null>(null);
   const [selectedPluginContexts, setSelectedPluginContexts] = useState<SelectedPluginContext[]>([]);
   const [selectedMcpContexts, setSelectedMcpContexts] = useState<SelectedMcpContext[]>([]);
@@ -234,6 +243,10 @@ export function HomeView({
   const [mcpLoading, setMcpLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [promptEditedByUser, setPromptEditedByUser] = useState(false);
+  const examplePromptInfoRef = useRef<ExamplePromptInfo | null>(null);
+  const handleExamplePromptStatusChange = useCallback((info: ExamplePromptInfo | null) => {
+    examplePromptInfoRef.current = info;
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [designSystemLogoById, setDesignSystemLogoById] = useState<Record<string, string>>({});
   const [elevenLabsVoices, setElevenLabsVoices] = useState<AudioVoiceOption[]>([]);
@@ -259,7 +272,7 @@ export function HomeView({
       area: 'plugin_replacement_modal',
     });
   }, [pendingReplacement, analytics.track]);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<HomeHeroHandle | null>(null);
   const consumedHandoffIdRef = useRef<number | null>(null);
   const pendingPromptFocusEndRef = useRef(false);
   const activePluginApplyRequestRef = useRef(0);
@@ -379,12 +392,7 @@ export function HomeView({
   useEffect(() => {
     if (!pendingPromptFocusEndRef.current) return;
     pendingPromptFocusEndRef.current = false;
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    const position = input.value.length;
-    input.setSelectionRange(position, position);
-    input.scrollTop = input.scrollHeight;
+    inputRef.current?.focusEnd();
   }, [prompt]);
 
   useEffect(() => {
@@ -409,6 +417,7 @@ export function HomeView({
     setSelectedMcpContexts([]);
     setSelectedConnectorContexts([]);
     setFallbackProjectKind('other');
+    setFallbackProjectMetadata(null);
     if (promptHandoff.focus) {
       pendingPromptFocusEndRef.current = true;
     }
@@ -417,6 +426,7 @@ export function HomeView({
     setPendingAuthoringPrompt(promptHandoff.prompt);
     setPendingAuthoringInputs(promptHandoff.inputs);
     setPendingAuthoringChipId('create-plugin');
+    setPendingChipId('create-plugin');
   }, [promptHandoff]);
 
   const activeContextItemCount = useMemo(
@@ -532,12 +542,7 @@ export function HomeView({
 
   function focusPromptAtEnd() {
     requestAnimationFrame(() => {
-      const input = inputRef.current;
-      if (!input) return;
-      input.focus();
-      const position = input.value.length;
-      input.setSelectionRange(position, position);
-      input.scrollTop = input.scrollHeight;
+      inputRef.current?.focusEnd();
     });
   }
 
@@ -571,6 +576,7 @@ export function HomeView({
   ) {
     const applyRequestId = activePluginApplyRequestRef.current + 1;
     activePluginApplyRequestRef.current = applyRequestId;
+    setActiveSkill(null);
     const shouldResolveImmediately = options?.deferApply !== true;
     const inputFields = options?.inputFields ?? record.manifest?.od?.inputs ?? [];
     const optimisticInputs = hydratePluginInputs(
@@ -625,6 +631,7 @@ export function HomeView({
       suppressPromptSync: suppressPromptUpdate,
     });
     setFallbackProjectKind(null);
+    setFallbackProjectMetadata(null);
     setDetailsRecord(null);
     if (!suppressPromptUpdate && optimisticPrompt !== null) {
       setPrompt(optimisticPrompt);
@@ -858,16 +865,11 @@ export function HomeView({
     focusPromptAtEnd();
   }
 
-  function useExamplePlugin(record: InstalledPluginRecord, chipId: string, promptText: string) {
-    const projectKind = projectKindForExamplePlugin(record, chipId);
-    requestActivePlugin(record, promptText, {
-      projectKind,
-      chipId,
-      inputs: {},
-      inputFields: [],
-      queryTemplate: null,
-      replaceWithoutConfirmation: true,
-    });
+  function useExamplePlugin(_record: InstalledPluginRecord, _chipId: string, promptText: string) {
+    setError(null);
+    setPrompt(promptText);
+    setPromptEditedByUser(false);
+    focusPromptAtEnd();
   }
 
   function removePluginContext(pluginId: string) {
@@ -968,6 +970,7 @@ export function HomeView({
     activePluginApplyRequestRef.current += 1;
     setActive(null);
     setFallbackProjectKind(null);
+    setFallbackProjectMetadata(null);
     setPendingApplyId(null);
     setPendingChipId(null);
     setPrompt('');
@@ -978,6 +981,7 @@ export function HomeView({
     activePluginApplyRequestRef.current += 1;
     setActive(null);
     setFallbackProjectKind(null);
+    setFallbackProjectMetadata(null);
     setPendingApplyId(null);
     setPendingChipId(null);
     setError(null);
@@ -986,9 +990,15 @@ export function HomeView({
   }
 
   function useSkill(skill: SkillSummary, nextPrompt: string | null) {
+    activePluginApplyRequestRef.current += 1;
+    setActive(null);
+    setPendingChipId(null);
+    setPendingApplyId(null);
+    setFallbackProjectKind(null);
+    setFallbackProjectMetadata(null);
     setActiveSkill(skill);
     setError(null);
-    const replacement = nextPrompt ?? skill.examplePrompt ?? '';
+    const replacement = nextPrompt ?? localizeSkillPrompt(locale, skill) ?? '';
     if (replacement.trim().length > 0) {
       setPrompt(replacement);
       setPromptEditedByUser(false);
@@ -1007,6 +1017,18 @@ export function HomeView({
     focusPromptAtEnd();
   }
 
+  function removeMcpContext(serverId: string) {
+    const server = selectedMcpContexts.find((item) => item.server.id === serverId)?.server ?? null;
+    setSelectedMcpContexts((current) => current.filter((item) => item.server.id !== serverId));
+    if (server) {
+      setPrompt((current) => removeContextMentionsFromPrompt(current, [
+        server.label || server.id,
+        server.id,
+      ]));
+      setPromptEditedByUser(true);
+    }
+  }
+
   function useConnector(connector: ConnectorDetail, nextPrompt: string) {
     setSelectedConnectorContexts((current) => (
       current.some((item) => item.connector.id === connector.id)
@@ -1019,6 +1041,18 @@ export function HomeView({
     focusPromptAtEnd();
   }
 
+  function removeConnectorContext(connectorId: string) {
+    const connector = selectedConnectorContexts.find((item) => item.connector.id === connectorId)?.connector ?? null;
+    setSelectedConnectorContexts((current) => current.filter((item) => item.connector.id !== connectorId));
+    if (connector) {
+      setPrompt((current) => removeContextMentionsFromPrompt(current, [
+        connector.name,
+        connector.id,
+      ]));
+      setPromptEditedByUser(true);
+    }
+  }
+
   function queuePluginAuthoring(chipId: string | null, goal?: string) {
     const nextInputs = buildPluginAuthoringInputs(goal);
     const nextPrompt = buildPluginAuthoringPromptForInputs(nextInputs);
@@ -1026,12 +1060,14 @@ export function HomeView({
       setActive(null);
       setActiveSkill(null);
       setFallbackProjectKind('other');
+      setFallbackProjectMetadata(null);
       setError(null);
       setPrompt(nextPrompt);
       setPromptEditedByUser(false);
       setPendingAuthoringPrompt(nextPrompt);
       setPendingAuthoringInputs(nextInputs);
       setPendingAuthoringChipId(chipId ?? 'create-plugin');
+      setPendingChipId(chipId ?? 'create-plugin');
       focusPromptAtEnd();
     }, {
       before: active?.record.id ?? null,
@@ -1045,6 +1081,7 @@ export function HomeView({
     const record = authoringRecord ?? plugins.find((plugin) => plugin.id === 'od-new-generation');
     setPendingAuthoringChipId(null);
     if (!record) {
+      setPendingChipId(null);
       // The authoring scenario can be absent in a long-running dev
       // daemon that started before the bundled plugin was added. If
       // even the default scenario is missing, do not block the user:
@@ -1235,12 +1272,19 @@ export function HomeView({
       : homeCreateProjectMetadata(
           submittedProjectKind,
           submittedActive?.inputs ?? null,
-          submittedActive?.projectMetadata ?? null,
+          submittedActive?.projectMetadata ?? fallbackProjectMetadata ?? null,
         );
+    // Scenario plugins (chips / preset cards) and explicit skill picks are
+    // mutually exclusive routing sources — never send both (#2972).
+    const resolvedSkillId = submittedActive ? null : activeSkill?.id ?? null;
+    const routedPluginId =
+      sessionMode === 'design'
+        ? submittedActive?.record.id ?? DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID
+        : submittedActive?.record.id ?? null;
     onSubmit({
       prompt: trimmed,
-      pluginId: submittedActive?.record.id ?? DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
-      skillId: activeSkill?.id ?? null,
+      pluginId: routedPluginId,
+      skillId: resolvedSkillId,
       appliedPluginSnapshotId: submittedActive?.result?.appliedPlugin?.snapshotId ?? null,
       pluginTitle: submittedActive?.record.title ?? null,
       taskKind: submittedActive?.result?.appliedPlugin?.taskKind ?? null,
@@ -1252,6 +1296,14 @@ export function HomeView({
       contextMcpServers,
       contextConnectors,
       attachments: stagedFiles,
+      conversationMode: sessionMode,
+      ...(() => {
+        if (!examplePromptInfoRef.current) return {};
+        const key = 'od:example-prompt-used';
+        if (localStorage.getItem(key)) return {};
+        localStorage.setItem(key, '1');
+        return { examplePromptContext: examplePromptInfoRef.current };
+      })(),
     });
   }
 
@@ -1262,17 +1314,23 @@ export function HomeView({
         prompt={prompt}
         onPromptChange={handlePromptChange}
         onSubmit={submit}
+        sessionMode={sessionMode}
+        onSessionModeChange={setSessionMode}
         activePluginTitle={activeBadgeTitle}
         activePluginRecord={active?.record ?? null}
         activeSkillId={activeSkill?.id ?? null}
-        activeSkillTitle={activeSkill?.name ?? null}
+        activeSkillTitle={activeSkill ? localizeSkillName(locale, activeSkill) : null}
         activeChipId={active?.chipId ?? null}
         showActivePluginChip={showActivePluginChip}
         onClearActivePlugin={clearActivePlugin}
         onClearActiveChip={clearActiveChipSelection}
         onClearActiveSkill={() => setActiveSkill(null)}
         selectedPluginContexts={selectedPluginContexts.map((item) => item.record)}
+        selectedMcpContexts={selectedMcpContexts.map((item) => item.server)}
+        selectedConnectorContexts={selectedConnectorContexts.map((item) => item.connector)}
         onRemovePluginContext={removePluginContext}
+        onRemoveMcpContext={removeMcpContext}
+        onRemoveConnectorContext={removeConnectorContext}
         onOpenPluginDetails={setDetailsRecord}
         pluginInputFields={active?.inputFields ?? []}
         pluginInputValues={active?.inputs ?? {}}
@@ -1311,10 +1369,12 @@ export function HomeView({
         onPickChip={pickChip}
         contextItemCount={contextItemCount}
         error={error}
+        onExamplePromptStatusChange={handleExamplePromptStatusChange}
       />
 
       <RecentProjectsStrip
         projects={projects}
+        designSystems={designSystems}
         {...(projectsLoading !== undefined ? { loading: projectsLoading } : {})}
         onOpen={(id) => {
           // P0 ui_click area=recent_projects element=project_card — emit
@@ -1353,14 +1413,16 @@ export function HomeView({
         presetSelection={presetStartersSelection}
       />
 
-      {detailsRecord ? (
-        <PluginDetailsModal
-          record={detailsRecord}
-          onClose={() => setDetailsRecord(null)}
-          onUse={(record) => requestPluginContextUse(record, 'use')}
-          isApplying={pendingApplyId === detailsRecord.id}
-        />
-      ) : null}
+      <AnimatePresence>
+        {detailsRecord ? (
+          <PluginDetailsModal
+            record={detailsRecord}
+            onClose={() => setDetailsRecord(null)}
+            onUse={(record) => requestPluginContextUse(record, 'use')}
+            isApplying={pendingApplyId === detailsRecord.id}
+          />
+        ) : null}
+      </AnimatePresence>
       {pendingReplacement ? (
         <div className="home-hero-confirm__backdrop" role="presentation">
           <div
@@ -1453,35 +1515,6 @@ function projectKindForSkill(skill: SkillSummary | null): ProjectKind | null {
   return 'other';
 }
 
-function projectKindForExamplePlugin(
-  record: InstalledPluginRecord,
-  chipId: string,
-): ProjectKind {
-  const mode = homePluginManifestField(record, 'mode');
-  const surface = homePluginManifestField(record, 'surface');
-  if (mode === 'deck') return 'deck';
-  if (mode === 'prototype') return 'prototype';
-  if (mode === 'image' || surface === 'image') return 'image';
-  if (mode === 'video' || surface === 'video') return 'video';
-  if (mode === 'audio' || surface === 'audio') return 'audio';
-  const chip = findChip(chipId);
-  if (
-    chip?.action.kind === 'apply-scenario' ||
-    chip?.action.kind === 'apply-figma-migration'
-  ) {
-    return chip.action.projectKind;
-  }
-  return 'other';
-}
-
-function homePluginManifestField(
-  record: InstalledPluginRecord,
-  key: string,
-): string | null {
-  const value = (record.manifest?.od ?? {})[key];
-  return typeof value === 'string' ? value.toLowerCase() : null;
-}
-
 function defaultPluginIdForChip(chipId: string | null): string | null {
   if (!chipId) return null;
   const chip = findChip(chipId);
@@ -1511,7 +1544,7 @@ function shouldShowActivePluginChip(active: ActivePlugin | null): boolean {
 function facetSelectionForChip(chipId: string): FacetSelection | null {
   switch (chipId) {
     case 'prototype': return { category: 'prototype', subcategory: null };
-    case 'live-artifact': return { category: 'prototype', subcategory: 'business-dashboards' };
+    case 'live-artifact': return { category: 'live-artifact', subcategory: null };
     case 'deck': return { category: 'deck', subcategory: null };
     case 'image': return { category: 'image', subcategory: null };
     case 'video': return { category: 'video', subcategory: null };
@@ -1539,7 +1572,7 @@ function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>['t
 
 function footerInputNamesForChip(chipId: string | null): string[] {
   if (chipId === 'prototype') return ['designSystem', 'fidelity'];
-  if (chipId === 'deck') return ['designSystem', 'speakerNotes'];
+  if (chipId === 'deck') return ['designSystem', 'slideCount', 'speakerNotes'];
   if (chipId === 'image') return ['designSystem', 'model', 'ratio', 'resolution'];
   if (chipId === 'video') return ['designSystem', 'model', 'ratio', 'duration', 'resolution'];
   if (chipId === 'audio') return ['audioType', 'model', 'duration'];
@@ -1563,6 +1596,8 @@ function homeCreateProjectMetadata(
   if (fidelity) next.fidelity = fidelity;
   const speakerNotes = normalizeHomeSpeakerNotes(inputs?.speakerNotes);
   if (speakerNotes !== null) next.speakerNotes = speakerNotes;
+  const slideCount = normalizeHomeSlideCount(inputs?.slideCount);
+  if (slideCount) next.slideCount = slideCount;
   return next;
 }
 
@@ -1595,6 +1630,12 @@ function normalizeHomeSpeakerNotes(value: unknown): boolean | null {
   return null;
 }
 
+function normalizeHomeSlideCount(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function designSystemOptionsForHome(
   systems: DesignSystemSummary[],
   defaultDesignSystemId: string | null,
@@ -1603,7 +1644,7 @@ function designSystemOptionsForHome(
 ): HomeDesignSystemOption[] {
   const selectable = systems.filter((system) => {
     if (!system.title) return false;
-    if (system.source === 'user') return (system.status ?? 'draft') === 'published';
+    if (system.source === 'user' || system.isEditable === true) return (system.status ?? 'draft') === 'published';
     return true;
   });
   const systemOptions = selectable
@@ -1623,15 +1664,19 @@ function designSystemOptionsForHome(
       if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
       return a.title.localeCompare(b.title);
     });
+  const autoOption: HomeDesignSystemOption = {
+    id: AUTO_DESIGN_SYSTEM_OPTION_ID,
+    title: t('homeHero.footer.autoDesignSystem'),
+    isDefault: false,
+    auto: true,
+    summary: t('homeHero.footer.autoDesignSystemSummary'),
+  };
+  const defaultOption = systemOptions.find((option) => option.isDefault);
+  if (!defaultOption) return [autoOption, ...systemOptions];
   return [
-    {
-      id: AUTO_DESIGN_SYSTEM_OPTION_ID,
-      title: t('homeHero.footer.autoDesignSystem'),
-      isDefault: false,
-      auto: true,
-      summary: t('homeHero.footer.autoDesignSystemSummary'),
-    },
-    ...systemOptions,
+    defaultOption,
+    autoOption,
+    ...systemOptions.filter((option) => option.id !== defaultOption.id),
   ];
 }
 
@@ -1896,6 +1941,17 @@ function removePluginMentionFromPrompt(prompt: string, record: InstalledPluginRe
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n[ \t]+/g, '\n')
     .trim();
+}
+
+function removeContextMentionsFromPrompt(prompt: string, labels: string[]): string {
+  const uniqueLabels = Array.from(new Set(labels.filter(Boolean)));
+  return uniqueLabels.reduce((current, label) => {
+    const token = inlineMentionToken(label);
+    return current.replace(
+      new RegExp(`(^|[\\s([{"'])${escapeRegExp(token)}(?=$|\\s|[.,;:!?)}\\]"'])([^\\S\\r\\n])?`, 'g'),
+      '$1',
+    );
+  }, prompt);
 }
 
 function appendPromptQuery(current: string, query: string): string {

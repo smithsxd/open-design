@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   OPEN_DESIGN_HOST_GLOBAL,
   OPEN_DESIGN_HOST_VERSION,
+  clearHostBrowserData,
   checkHostUpdater,
   detectOpenDesignHostClientType,
   getHostUpdaterStatus,
@@ -65,7 +66,15 @@ describe("open-design host contract", () => {
 
   it("rejects legacy or incomplete bridge shapes", () => {
     expect(isOpenDesignHostBridge({ version: OPEN_DESIGN_HOST_VERSION })).toBe(false);
-    expect(isOpenDesignHostBridge({ ...createMockOpenDesignHost(), version: 2 })).toBe(false);
+    expect(isOpenDesignHostBridge({ ...createMockOpenDesignHost(), version: 1 })).toBe(false);
+    expect(isOpenDesignHostBridge({
+      ...createMockOpenDesignHost(),
+      browser: {},
+    })).toBe(false);
+    expect(isOpenDesignHostBridge({
+      ...createMockOpenDesignHost(),
+      capture: {},
+    })).toBe(false);
     expect(isOpenDesignHostBridge({
       ...createMockOpenDesignHost(),
       shell: { openExternal: async () => ({ ok: true }) },
@@ -129,6 +138,29 @@ describe("open-design host contract", () => {
     expect(JSON.stringify(result)).not.toContain("resolvedDir");
   });
 
+  it("accepts imported folders with no detected entry file", () => {
+    const result = normalizeOpenDesignHostProjectImportResult({
+      ok: true,
+      response: {
+        project: {
+          id: "project-1",
+          name: "Imported source repo",
+          resolvedDir: "/private/path/that-must-not-cross",
+        },
+        conversationId: "conversation-1",
+        entryFile: null,
+      },
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      entryFile: null,
+    });
+    expect(JSON.stringify(result)).not.toContain("resolvedDir");
+  });
+
   it("preserves canceled and structured failure project-import results", () => {
     expect(normalizeOpenDesignHostProjectImportResult({ canceled: true, ok: false })).toEqual({
       canceled: true,
@@ -165,6 +197,7 @@ describe("open-design host contract", () => {
   it("routes all host actions through package-owned helpers", async () => {
     const openExternal = vi.fn(async () => ({ ok: true as const }));
     const openPath = vi.fn(async () => ({ ok: true as const }));
+    const clearData = vi.fn(async () => ({ ok: true as const }));
     const pickAndImport = vi.fn(async () => ({
       ok: true as const,
       projectId: "project-2",
@@ -175,6 +208,7 @@ describe("open-design host contract", () => {
     const setVisible = vi.fn();
     const scope: Record<string, unknown> = {};
     scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost({
+      browser: { clearData },
       shell: { openExternal, openPath },
       project: { pickAndImport },
       pdf: { print },
@@ -183,6 +217,7 @@ describe("open-design host contract", () => {
 
     await expect(openHostExternalUrl("https://example.com", scope)).resolves.toEqual({ ok: true });
     await expect(openHostProjectPath("project-2", scope)).resolves.toEqual({ ok: true });
+    await expect(clearHostBrowserData({ cookies: true }, scope)).resolves.toEqual({ ok: true });
     await expect(pickAndImportHostProject({ skillId: "skill-1" }, scope)).resolves.toMatchObject({
       ok: true,
       projectId: "project-2",
@@ -192,6 +227,7 @@ describe("open-design host contract", () => {
 
     expect(openExternal).toHaveBeenCalledWith("https://example.com");
     expect(openPath).toHaveBeenCalledWith("project-2");
+    expect(clearData).toHaveBeenCalledWith({ cookies: true });
     expect(pickAndImport).toHaveBeenCalledWith({ skillId: "skill-1" });
     expect(print).toHaveBeenCalledWith("<html></html>", "nonce", { deck: true });
     expect(setVisible).toHaveBeenCalledWith(true);

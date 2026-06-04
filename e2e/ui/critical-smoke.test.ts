@@ -1,69 +1,15 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-
-const STORAGE_KEY = 'open-design:config';
+import { applyStandardMocks } from '@/playwright/mock-factory';
+import { T } from '@/timeouts';
 
 test.describe.configure({ timeout: 30_000 });
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((key) => {
-    window.localStorage.setItem(
-      key,
-      JSON.stringify({
-        mode: 'daemon',
-        apiKey: '',
-        baseUrl: 'https://api.anthropic.com',
-        model: 'claude-sonnet-4-5',
-        agentId: 'mock',
-        skillId: null,
-        designSystemId: null,
-        onboardingCompleted: true,
-        agentModels: {},
-        privacyDecisionAt: 1,
-        telemetry: { metrics: false, content: false, artifactManifest: false },
-      }),
-    );
-  }, STORAGE_KEY);
-
-  await page.route('**/api/agents', async (route) => {
-    await route.fulfill({
-      json: {
-        agents: [
-          {
-            id: 'mock',
-            name: 'Mock Agent',
-            bin: 'mock-agent',
-            available: true,
-            version: 'test',
-            models: [{ id: 'default', label: 'Default' }],
-          },
-        ],
-      },
-    });
-  });
-
-  await page.route('**/api/app-config', async (route) => {
-    if (route.request().method() !== 'GET') {
-      await route.continue();
-      return;
-    }
-    await route.fulfill({
-      json: {
-        config: {
-          onboardingCompleted: true,
-          agentId: 'mock',
-          skillId: null,
-          designSystemId: null,
-          agentModels: {},
-          privacyDecisionAt: 1,
-          telemetry: { metrics: false, content: false, artifactManifest: false },
-        },
-      },
-    });
-  });
+  await applyStandardMocks(page);
 });
 
-test('home loads with the primary entry controls', async ({ page }) => {
+test('[P0] home loads with the primary entry controls', async ({ page }) => {
   await gotoEntryHome(page);
 
   await expect(page.getByTestId('entry-nav-logo')).toBeVisible();
@@ -72,16 +18,19 @@ test('home loads with the primary entry controls', async ({ page }) => {
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
 });
 
-test('settings dialog is reachable from home', async ({ page }) => {
+test('[P0] settings dialog is reachable from home', async ({ page }) => {
   await gotoEntryHome(page);
 
-  await page.getByRole('button', { name: 'Open settings' }).click();
+  // The home settings entry is a menu: open it, then the "Settings" item
+  // opens the full execution-mode dialog.
+  await page.getByTestId('entry-settings-menu-trigger').click();
+  await page.getByTestId('entry-settings-open-details').click();
   const settingsDialog = page.getByRole('dialog');
   await expect(settingsDialog).toBeVisible();
   await expect(settingsDialog.getByRole('heading', { name: 'Execution mode' })).toBeVisible();
 });
 
-test('prototype project creation reaches the workspace shell', async ({ page }) => {
+test('[P0] prototype project creation reaches the workspace shell', async ({ page }) => {
   await gotoEntryHome(page);
   await openNewProjectModal(page);
   await page.getByTestId('new-project-tab-prototype').click();
@@ -95,7 +44,7 @@ async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
   const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve Open Design' });
-  if (await privacyDialog.isVisible().catch(() => false)) {
+  if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /not now/i }).click();
     await expect(privacyDialog).toHaveCount(0);
   }
@@ -118,6 +67,5 @@ async function expectWorkspaceReady(page: Page) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  const loading = page.getByText('Loading Open Design…');
-  await loading.waitFor({ state: 'detached', timeout: 10_000 }).catch(() => {});
+  await page.getByText('Loading Open Design…').waitFor({ state: 'hidden', timeout: T.medium });
 }

@@ -82,6 +82,19 @@ export const DEFAULT_CONFIG: AppConfig = {
   pet: DEFAULT_PET,
   notifications: DEFAULT_NOTIFICATIONS,
   orbit: DEFAULT_ORBIT,
+  projectLocations: [],
+  defaultProjectLocationId: 'default',
+  // Telemetry defaults to ON so fresh-install users emit onboarding /
+  // ui_click events from the first frame. The disclosure modal still
+  // appears after `onboardingCompleted` flips, and Settings → Privacy
+  // remains the one-click opt-out. Without these defaults the gate at
+  // `daemon/src/analytics.ts` (`if (telemetry?.metrics !== true) return`)
+  // dropped every event fired during onboarding because no consent
+  // existed yet — observed live on the nightly.10 QA run, which left
+  // zero `page_view pn=onboarding` rows on PostHog despite the user
+  // completing the flow. `artifactManifest` stays off; the existing
+  // PrivacySection lets the user enable it explicitly.
+  telemetry: { metrics: true, content: true, artifactManifest: false },
 };
 
 /** Well-known providers with pre-filled base URLs. */
@@ -148,6 +161,22 @@ export const KNOWN_PROVIDERS: KnownProvider[] = [
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-4o',
     models: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
+  },
+  {
+    label: 'OpenRouter',
+    protocol: 'openai',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'anthropic/claude-3.7-sonnet',
+    models: [
+      'anthropic/claude-3.7-sonnet',
+      'anthropic/claude-3.5-sonnet',
+      'google/gemini-2.5-flash',
+      'google/gemini-2.5-pro',
+      'openai/gpt-4o',
+      'openai/o3-mini',
+      'deepseek/deepseek-chat',
+      'deepseek/deepseek-r1',
+    ],
   },
   {
     label: 'Azure OpenAI',
@@ -411,6 +440,7 @@ interface PublicComposioConfigResponse {
 
 interface PublicMediaProviderConfigEntry {
   configured?: boolean;
+  source?: string;
   apiKeyTail?: string;
   baseUrl?: string;
   model?: string;
@@ -496,16 +526,21 @@ export function buildMediaProvidersForDaemonSave(
   for (const [providerId, currentEntry] of Object.entries(currentProviders ?? {})) {
     const daemonEntry = daemonProviders?.[providerId];
     const apiKey = currentEntry?.apiKey?.trim() ?? '';
+    const hasStoredKeyMarker = Boolean(
+      currentEntry?.apiKeyTail?.trim()
+      || daemonEntry?.apiKeyTail?.trim(),
+    );
     const preserveApiKey = !apiKey && Boolean(
       currentEntry?.apiKeyConfigured
-      && (daemonEntry?.apiKeyConfigured || daemonEntry?.apiKeyTail?.trim()),
+      && hasStoredKeyMarker,
     );
-    const baseUrl =
+    const explicitBaseUrl =
       currentEntry?.baseUrl?.trim()
       || daemonEntry?.baseUrl?.trim()
-      || defaultBaseUrlForProvider(providerId);
+      || '';
     const model = currentEntry?.model?.trim() || daemonEntry?.model?.trim() || '';
-    if (!apiKey && !preserveApiKey && !baseUrl && !model) continue;
+    if (!apiKey && !preserveApiKey && !explicitBaseUrl && !model) continue;
+    const baseUrl = explicitBaseUrl || defaultBaseUrlForProvider(providerId);
     providers[providerId] = {
       ...(apiKey ? { apiKey } : {}),
       ...(preserveApiKey ? { preserveApiKey: true } : {}),
@@ -547,6 +582,9 @@ export async function fetchMediaProvidersFromDaemon(): Promise<DaemonMediaProvid
         apiKeyConfigured: Boolean(entry?.configured),
         apiKeyTail: entry?.apiKeyTail ?? '',
         baseUrl: entry?.baseUrl ?? '',
+        ...(typeof entry?.source === 'string' && entry.source.trim()
+          ? { source: entry.source.trim() }
+          : {}),
         ...(typeof entry?.model === 'string' && entry.model.trim()
           ? { model: entry.model.trim() }
           : {}),
@@ -668,12 +706,21 @@ export function mergeDaemonConfig(
   if (daemonConfig.customInstructions !== undefined) {
     next.customInstructions = daemonConfig.customInstructions ?? undefined;
   }
+  if (daemonConfig.projectLocations !== undefined) {
+    next.projectLocations = daemonConfig.projectLocations;
+  }
+  if (daemonConfig.defaultProjectLocationId !== undefined) {
+    next.defaultProjectLocationId = daemonConfig.defaultProjectLocationId ?? 'default';
+  }
   return next;
 }
 
 export function mergeDaemonMediaProviders(
   localConfig: AppConfig,
   daemonProviders: AppConfig['mediaProviders'] | null,
+  options?: {
+    preserveLocalProviderIds?: ReadonlySet<string>;
+  },
 ): AppConfig {
   if (daemonProviders == null) {
     return { ...localConfig };
@@ -691,7 +738,14 @@ export function mergeDaemonMediaProviders(
   const mediaProviders = { ...(localConfig.mediaProviders ?? {}) };
   for (const [providerId, daemonEntry] of Object.entries(daemonProviders ?? {})) {
     if (!isStoredMediaProviderEntryPresent(daemonEntry)) continue;
-    mediaProviders[providerId] = { ...daemonEntry };
+    const localEntry = mediaProviders[providerId];
+    const preserveLocalPendingEdit = Boolean(
+      options?.preserveLocalProviderIds?.has(providerId)
+      && hasRecoverableLocalMediaProviderFields(localEntry),
+    );
+    mediaProviders[providerId] = preserveLocalPendingEdit
+      ? { ...daemonEntry, ...localEntry }
+      : { ...daemonEntry };
   }
 
   return {
@@ -772,6 +826,8 @@ export async function syncConfigToDaemon(
     telemetry: config.telemetry,
     privacyDecisionAt: config.privacyDecisionAt,
     customInstructions: config.customInstructions ?? null,
+    projectLocations: config.projectLocations ?? [],
+    defaultProjectLocationId: config.defaultProjectLocationId ?? 'default',
   };
   try {
     const response = await fetch('/api/app-config', {

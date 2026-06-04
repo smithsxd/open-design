@@ -79,6 +79,8 @@ describe('AssistantMessage unfinished todo state', () => {
   it('shows a soft no-output state instead of Done for empty API responses', () => {
     render(
       <AssistantMessage
+        projectKind="prototype"
+        conversationId="conv-1"
         message={messageWithEvents([
           { kind: 'status', label: 'empty_response', detail: 'deepseek-chat' },
           {
@@ -101,6 +103,8 @@ describe('AssistantMessage unfinished todo state', () => {
   it('keeps Done for a completed latest TodoWrite fixture', () => {
     render(
       <AssistantMessage
+        projectKind="prototype"
+        conversationId="conv-1"
         message={messageWithEvents([
           {
             kind: 'tool_use',
@@ -141,6 +145,68 @@ describe('AssistantMessage unfinished todo state', () => {
     expect(screen.getByText(/1439 out/)).toBeTruthy();
   });
 
+  it('hides zero cost because it is not reliable billing data', () => {
+    render(
+      <AssistantMessage
+        message={{
+          id: 'assistant-zero-cost',
+          role: 'assistant',
+          content: 'Done',
+          startedAt: 1_000,
+          runStatus: 'succeeded',
+          events: [{ kind: 'usage', outputTokens: 1439, durationMs: 32_000, costUsd: 0 }],
+        }}
+        streaming={false}
+        projectId="project-1"
+        isLast
+      />,
+    );
+
+    expect(screen.getByText(/1439 out/)).toBeTruthy();
+    expect(screen.queryByText(/\$0\.0000/)).toBeNull();
+  });
+
+  it('hides costs that round to zero in the current display precision', () => {
+    render(
+      <AssistantMessage
+        message={{
+          id: 'assistant-rounded-zero-cost',
+          role: 'assistant',
+          content: 'Done',
+          startedAt: 1_000,
+          runStatus: 'succeeded',
+          events: [{ kind: 'usage', outputTokens: 1439, durationMs: 32_000, costUsd: 0.00001 }],
+        }}
+        streaming={false}
+        projectId="project-1"
+        isLast
+      />,
+    );
+
+    expect(screen.getByText(/1439 out/)).toBeTruthy();
+    expect(screen.queryByText(/\$0\.0000/)).toBeNull();
+  });
+
+  it('shows positive usage cost when billing data is present', () => {
+    render(
+      <AssistantMessage
+        message={{
+          id: 'assistant-positive-cost',
+          role: 'assistant',
+          content: 'Done',
+          startedAt: 1_000,
+          runStatus: 'succeeded',
+          events: [{ kind: 'usage', outputTokens: 1439, durationMs: 32_000, costUsd: 0.0123 }],
+        }}
+        streaming={false}
+        projectId="project-1"
+        isLast
+      />,
+    );
+
+    expect(screen.getByText(/\$0\.0123/)).toBeTruthy();
+  });
+
   it('does not synthesize a growing elapsed time for completed messages without endedAt', () => {
     render(
       <AssistantMessage
@@ -166,6 +232,8 @@ describe('AssistantMessage unfinished todo state', () => {
     const onContinue = vi.fn();
     render(
       <AssistantMessage
+        projectKind="prototype"
+        conversationId="conv-1"
         message={messageWithEvents([
           {
             kind: 'tool_use',
@@ -213,6 +281,8 @@ describe('AssistantMessage unfinished todo state', () => {
   it('hides the continue button on older assistant turns', () => {
     render(
       <AssistantMessage
+        projectKind="prototype"
+        conversationId="conv-1"
         message={messageWithEvents([
           {
             kind: 'tool_use',
@@ -276,8 +346,8 @@ describe('AssistantMessage unfinished todo state', () => {
     fireEvent.click(screen.getByTestId('assistant-plugin-contribute-generated-plugin'));
     expect(onPluginFolderAgentAction).toHaveBeenCalledWith('generated-plugin', 'contribute');
     expect(
-      await screen.findByText('Sent to the agent. The CLI run will continue in chat.'),
-    ).toBeTruthy();
+      screen.queryByText('Sent to the agent. The CLI run will continue in chat.'),
+    ).toBeNull();
 
     fireEvent.click(screen.getByTestId('assistant-plugin-open-manifest-generated-plugin'));
     expect(onOpen).toHaveBeenCalledWith('generated-plugin/open-design.json');

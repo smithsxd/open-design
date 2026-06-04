@@ -24,6 +24,13 @@ import {
   localizeTaxonomyValue,
   localizeTemplateText,
 } from '../content-i18n';
+import { getBundledPlugins } from './bundled-plugins';
+import {
+  bundledRecordOf,
+  categorizePlugin,
+  PLUGIN_CATEGORIES,
+  type PluginCategorySlug,
+} from './plugin-facets';
 
 // ---------------------------------------------------------------------------
 // Preview imagery lookup
@@ -84,14 +91,66 @@ function previewUrlFor(
   return filename ? `/previews/${bucket}/${filename}` : null;
 }
 
+const SKILLS_SRC_CANDIDATES = [
+  // Same dual-cwd story as PREVIEWS_ROOT_CANDIDATES.
+  path.resolve(process.cwd(), 'skills'),
+  path.resolve(process.cwd(), '../../skills'),
+  path.resolve(fileURLToPath(new URL('../../../../skills', import.meta.url))),
+] as const;
+
+function skillsSourceRoot(): string | null {
+  return SKILLS_SRC_CANDIDATES.find((dir) => existsSync(dir)) ?? null;
+}
+
+/**
+ * Slugs whose folder ships a runnable `example.html`. We treat that as
+ * the canonical signal that a skill is template-flavoured (a real
+ * static demo we can iframe / screenshot) rather than instruction-only
+ * (pure SKILL.md prose).
+ *
+ * Read once per build so the per-record `shapeSkill()` call stays O(1).
+ */
+function listSkillExamples(): Set<string> {
+  const root = skillsSourceRoot();
+  if (!root) return new Set();
+  const out = new Set<string>();
+  for (const name of readdirSync(root)) {
+    if (name.startsWith('_') || name.startsWith('.')) continue;
+    const example = path.join(root, name, 'example.html');
+    if (existsSync(example)) out.add(name);
+  }
+  return out;
+}
+
 const REPO_TREE = 'https://github.com/nexu-io/open-design/tree/main';
 const REPO_BLOB = 'https://github.com/nexu-io/open-design/blob/main';
+const SHOULD_CACHE_CATALOG = import.meta.env.PROD;
 
 // ---------------------------------------------------------------------------
 // Skills
 // ---------------------------------------------------------------------------
 
 export type SkillEntry = CollectionEntry<'skills'>;
+
+/**
+ * Two flavours of skill share the same SKILL.md schema and the same
+ * /skills/<slug>/ detail route, but differ in how they're presented:
+ *
+ *   - `template` — ships a runnable `example.html`. The detail page
+ *     exposes a click-to-expand iframe of the demo, and the catalog
+ *     row uses a real screenshot as its thumbnail.
+ *
+ *   - `instruction` — pure SKILL.md (e.g. `copywriting`,
+ *     `creative-director`). The "demo" depends on the agent's input,
+ *     so there's nothing static to iframe. The detail page hides the
+ *     preview block and surfaces the full SKILL.md body instead, and
+ *     the catalog row uses a typographic fallback card as its thumb.
+ *
+ * Catalog routing splits on this field: `/skills/templates/` and
+ * `/skills/instructions/` filter to one kind each; `/skills/` itself
+ * shows both as separate sections.
+ */
+export type SkillKind = 'instruction' | 'template';
 
 export interface SkillRecord {
   slug: string;
@@ -111,9 +170,12 @@ export interface SkillRecord {
   examplePrompt?: string;
   source: string;
   body: string;
+  kind: SkillKind;
   /** `/previews/skills/<slug>.png` if a generated preview exists, else null. */
   previewUrl: string | null;
 }
+
+const skillRecordsCache = new Map<LandingLocaleCode, Promise<ReadonlyArray<SkillRecord>>>();
 
 function deriveSkillSlug(id: string): string {
   // `id` is `[folder]/SKILL` (no extension). We want the folder name.
@@ -129,6 +191,7 @@ function firstParagraph(text: string | undefined, fallback = ''): string {
 export function shapeSkill(
   entry: SkillEntry,
   previews: Map<string, string>,
+  examples: Set<string>,
   locale: LandingLocaleCode = DEFAULT_LOCALE,
 ): SkillRecord {
   const slug = deriveSkillSlug(entry.id);
@@ -188,6 +251,7 @@ export function shapeSkill(
     examplePrompt,
     source: `${REPO_TREE}/skills/${slug}`,
     body: entry.body ?? '',
+    kind: examples.has(slug) ? 'template' : 'instruction',
     previewUrl: previewUrlFor('skills', slug, previews),
   };
 }
@@ -195,16 +259,54 @@ export function shapeSkill(
 export async function getSkillRecords(
   locale: LandingLocaleCode = DEFAULT_LOCALE,
 ): Promise<ReadonlyArray<SkillRecord>> {
-  const previews = listPreviews('skills');
-  const entries = await getCollection('skills');
-  const shaped = entries.map((entry) => shapeSkill(entry, previews, locale));
-  return shaped.sort((a, b) => {
-    // Featured (lower number = higher priority) first, then alphabetical.
-    const af = a.featured ?? Number.POSITIVE_INFINITY;
-    const bf = b.featured ?? Number.POSITIVE_INFINITY;
-    if (af !== bf) return af - bf;
-    return a.name.localeCompare(b.name);
-  });
+  if (!SHOULD_CACHE_CATALOG) {
+    const previews = listPreviews('skills');
+    const examples = listSkillExamples();
+    const entries = await getCollection('skills');
+    const shaped = entries.map((entry) => shapeSkill(entry, previews, examples, locale));
+    return shaped.sort((a, b) => {
+      // Featured (lower number = higher priority) first, then alphabetical.
+      const af = a.featured ?? Number.POSITIVE_INFINITY;
+      const bf = b.featured ?? Number.POSITIVE_INFINITY;
+      if (af !== bf) return af - bf;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  const cached = skillRecordsCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    const previews = listPreviews('skills');
+    const examples = listSkillExamples();
+    const entries = await getCollection('skills');
+    const shaped = entries.map((entry) => shapeSkill(entry, previews, examples, locale));
+    return shaped.sort((a, b) => {
+      // Featured (lower number = higher priority) first, then alphabetical.
+      const af = a.featured ?? Number.POSITIVE_INFINITY;
+      const bf = b.featured ?? Number.POSITIVE_INFINITY;
+      if (af !== bf) return af - bf;
+      return a.name.localeCompare(b.name);
+    });
+  })();
+
+  skillRecordsCache.set(locale, promise);
+  return promise;
+}
+
+/**
+ * Filter helper for kind-specific catalog routes (`/plugins/templates/`,
+ * `/plugins/skills/`). Caller gets the records already sorted by the
+ * standard catalog rules.
+ */
+export async function getSkillRecordsByKind(
+  kind: SkillKind,
+  locale: LandingLocaleCode = DEFAULT_LOCALE,
+): Promise<ReadonlyArray<SkillRecord>> {
+  const all = await getSkillRecords(locale);
+  return all.filter((s) => s.kind === kind);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +326,8 @@ export interface SystemRecord {
   source: string;
   body: string;
 }
+
+const systemRecordsCache = new Map<LandingLocaleCode, Promise<ReadonlyArray<SystemRecord>>>();
 
 function extractH1(body: string): string | undefined {
   for (const line of body.split('\n')) {
@@ -344,10 +448,27 @@ export function shapeSystem(
 export async function getSystemRecords(
   locale: LandingLocaleCode = DEFAULT_LOCALE,
 ): Promise<ReadonlyArray<SystemRecord>> {
-  const entries = await getCollection('systems');
-  return entries
-    .map((entry) => shapeSystem(entry, locale))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!SHOULD_CACHE_CATALOG) {
+    const entries = await getCollection('systems');
+    return entries
+      .map((entry) => shapeSystem(entry, locale))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const cached = systemRecordsCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    const entries = await getCollection('systems');
+    return entries
+      .map((entry) => shapeSystem(entry, locale))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  systemRecordsCache.set(locale, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +484,8 @@ export interface CraftRecord {
   source: string;
   body: string;
 }
+
+const craftRecordsCache = new Map<LandingLocaleCode, Promise<ReadonlyArray<CraftRecord>>>();
 
 const CRAFT_NAME_OVERRIDES: Record<string, string> = {
   'rtl-and-bidi': 'RTL & Bidi',
@@ -488,17 +611,41 @@ export function shapeCraft(
 export async function getCraftRecords(
   locale: LandingLocaleCode = DEFAULT_LOCALE,
 ): Promise<ReadonlyArray<CraftRecord>> {
-  const entries = await getCollection('craft');
-  // Astro normalizes the entry id from `craft/README.md` to `readme`
-  // (lowercase, extension stripped). Comparing the raw `'README'` string
-  // misses it on disk and used to ship `/craft/readme/` as a public
-  // craft principle and inflate the nav count by one. Compare
-  // case-insensitively so future README casings (`Readme.md`, etc.) are
-  // also filtered out.
-  return entries
-    .filter((e) => e.id.toLowerCase() !== 'readme')
-    .map((entry) => shapeCraft(entry, locale))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!SHOULD_CACHE_CATALOG) {
+    const entries = await getCollection('craft');
+    // Astro normalizes the entry id from `craft/README.md` to `readme`
+    // (lowercase, extension stripped). Comparing the raw `'README'` string
+    // misses it on disk and used to ship `/craft/readme/` as a public
+    // craft principle and inflate the nav count by one. Compare
+    // case-insensitively so future README casings (`Readme.md`, etc.) are
+    // also filtered out.
+    return entries
+      .filter((e) => e.id.toLowerCase() !== 'readme')
+      .map((entry) => shapeCraft(entry, locale))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const cached = craftRecordsCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    const entries = await getCollection('craft');
+    // Astro normalizes the entry id from `craft/README.md` to `readme`
+    // (lowercase, extension stripped). Comparing the raw `'README'` string
+    // misses it on disk and used to ship `/craft/readme/` as a public
+    // craft principle and inflate the nav count by one. Compare
+    // case-insensitively so future README casings (`Readme.md`, etc.) are
+    // also filtered out.
+    return entries
+      .filter((e) => e.id.toLowerCase() !== 'readme')
+      .map((entry) => shapeCraft(entry, locale))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  craftRecordsCache.set(locale, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
@@ -523,6 +670,8 @@ export interface TemplateRecord {
   body: string;
   previewUrl: string | null;
 }
+
+const templateRecordsCache = new Map<LandingLocaleCode, Promise<ReadonlyArray<TemplateRecord>>>();
 
 export type TemplateEntry = CollectionEntry<'templates'>;
 export type DesignTemplateEntry = CollectionEntry<'designTemplates'>;
@@ -633,26 +782,59 @@ export function shapeLiveArtifactTemplate(
 export async function getTemplateRecords(
   locale: LandingLocaleCode = DEFAULT_LOCALE,
 ): Promise<ReadonlyArray<TemplateRecord>> {
-  const previews = listPreviews('templates');
-  const designEntries = await getCollection('designTemplates');
-  const designRecords = designEntries.map((entry) =>
-    shapeDesignTemplate(entry, previews, locale),
-  );
+  if (!SHOULD_CACHE_CATALOG) {
+    const previews = listPreviews('templates');
+    const designEntries = await getCollection('designTemplates');
+    const designRecords = designEntries.map((entry) =>
+      shapeDesignTemplate(entry, previews, locale),
+    );
 
-  const liveEntries = await getCollection('templates');
-  const liveRecords = liveEntries.map((entry) =>
-    shapeLiveArtifactTemplate(entry, previews, locale),
-  );
+    const liveEntries = await getCollection('templates');
+    const liveRecords = liveEntries.map((entry) =>
+      shapeLiveArtifactTemplate(entry, previews, locale),
+    );
 
-  return [...designRecords, ...liveRecords].sort((a, b) => {
-    // Keep explicitly featured templates first, then group the canonical
-    // design-template catalogue ahead of legacy live-artifact shims.
-    const af = a.featured ?? Number.POSITIVE_INFINITY;
-    const bf = b.featured ?? Number.POSITIVE_INFINITY;
-    if (af !== bf) return af - bf;
-    if (a.origin !== b.origin) return a.origin === 'design-template' ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+    return [...designRecords, ...liveRecords].sort((a, b) => {
+      // Keep explicitly featured templates first, then group the canonical
+      // design-template catalogue ahead of legacy live-artifact shims.
+      const af = a.featured ?? Number.POSITIVE_INFINITY;
+      const bf = b.featured ?? Number.POSITIVE_INFINITY;
+      if (af !== bf) return af - bf;
+      if (a.origin !== b.origin) return a.origin === 'design-template' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  const cached = templateRecordsCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    const previews = listPreviews('templates');
+    const designEntries = await getCollection('designTemplates');
+    const designRecords = designEntries.map((entry) =>
+      shapeDesignTemplate(entry, previews, locale),
+    );
+
+    const liveEntries = await getCollection('templates');
+    const liveRecords = liveEntries.map((entry) =>
+      shapeLiveArtifactTemplate(entry, previews, locale),
+    );
+
+    return [...designRecords, ...liveRecords].sort((a, b) => {
+      // Keep explicitly featured templates first, then group the canonical
+      // design-template catalogue ahead of legacy live-artifact shims.
+      const af = a.featured ?? Number.POSITIVE_INFINITY;
+      const bf = b.featured ?? Number.POSITIVE_INFINITY;
+      if (af !== bf) return af - bf;
+      if (a.origin !== b.origin) return a.origin === 'design-template' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  })();
+
+  templateRecordsCache.set(locale, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
@@ -675,7 +857,44 @@ export interface CatalogCounts {
   byMode: Readonly<Record<string, number>>;
   /** SKILL.md `od.platform` → count. Lowercase keys (e.g. `mobile`, `desktop`). */
   byPlatform: Readonly<Record<string, number>>;
+  /**
+   * Live `PLUGIN_CATEGORIES` breakdown for the `/plugins/templates/`
+   * library, computed with the same `categorizePlugin` rule the
+   * templates page uses so the homepage Labs pills never drift from
+   * the real catalog. Ordered by count descending, zero-count
+   * categories dropped; `total` is the count of all categorized
+   * templates (the "All" pill).
+   */
+  templateCategories: {
+    total: number;
+    byCategory: ReadonlyArray<{ slug: PluginCategorySlug; count: number }>;
+  };
 }
+
+// Templates view = bundled plugins that land in one of the
+// PLUGIN_CATEGORIES artifact kinds (categorizePlugin !== null). Mirrors
+// the count the `/plugins/templates/` page derives so the homepage Labs
+// pills stay in lockstep with the library. Locale-independent (counts
+// don't vary by language), so it ignores the locale arg.
+function computeTemplateCategories(): CatalogCounts['templateCategories'] {
+  const counts = new Map<PluginCategorySlug, number>();
+  let total = 0;
+  for (const record of getBundledPlugins()) {
+    const category = categorizePlugin(bundledRecordOf(record));
+    if (!category) continue;
+    total += 1;
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  const byCategory = PLUGIN_CATEGORIES.map((cat) => ({
+    slug: cat.slug,
+    count: counts.get(cat.slug) ?? 0,
+  }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count);
+  return { total, byCategory };
+}
+
+const catalogCountsCache = new Map<LandingLocaleCode, Promise<CatalogCounts>>();
 
 function tallyKey(values: Iterable<string | undefined>): Record<string, number> {
   const out: Record<string, number> = {};
@@ -687,21 +906,52 @@ function tallyKey(values: Iterable<string | undefined>): Record<string, number> 
   return out;
 }
 
-export async function getCatalogCounts(): Promise<CatalogCounts> {
-  const [skills, systems, templates, craft] = await Promise.all([
-    getSkillRecords(),
-    getSystemRecords(),
-    getTemplateRecords(),
-    getCraftRecords(),
-  ]);
-  return {
-    skills: skills.length,
-    systems: systems.length,
-    templates: templates.length,
-    craft: craft.length,
-    byMode: tallyKey(skills.map((s) => s.mode)),
-    byPlatform: tallyKey(skills.map((s) => s.platform)),
-  };
+export async function getCatalogCounts(
+  locale: LandingLocaleCode = DEFAULT_LOCALE,
+): Promise<CatalogCounts> {
+  if (!SHOULD_CACHE_CATALOG) {
+    const [skills, systems, templates, craft] = await Promise.all([
+      getSkillRecords(locale),
+      getSystemRecords(locale),
+      getTemplateRecords(locale),
+      getCraftRecords(locale),
+    ]);
+    return {
+      skills: skills.length,
+      systems: systems.length,
+      templates: templates.length,
+      craft: craft.length,
+      byMode: tallyKey(skills.map((s) => s.mode)),
+      byPlatform: tallyKey(skills.map((s) => s.platform)),
+      templateCategories: computeTemplateCategories(),
+    };
+  }
+
+  const cached = catalogCountsCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    const [skills, systems, templates, craft] = await Promise.all([
+      getSkillRecords(locale),
+      getSystemRecords(locale),
+      getTemplateRecords(locale),
+      getCraftRecords(locale),
+    ]);
+    return {
+      skills: skills.length,
+      systems: systems.length,
+      templates: templates.length,
+      craft: craft.length,
+      byMode: tallyKey(skills.map((s) => s.mode)),
+      byPlatform: tallyKey(skills.map((s) => s.platform)),
+      templateCategories: computeTemplateCategories(),
+    };
+  })();
+
+  catalogCountsCache.set(locale, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
